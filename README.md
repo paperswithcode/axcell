@@ -17,6 +17,7 @@ Directory structure:
 └── prepare-data
 ```
 
-Unpacking source files:
-
-```./unpack-sources.sh archives sources```
+To preprocess data, run:
+```cd prepare-data
+make -j 8 -i```
+where `8` is number of jobs to run simultaneously.
