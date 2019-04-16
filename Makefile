@@ -1,20 +1,27 @@
-all:	pdfs-urls.csv sources-urls.csv
+DATA_DIR = ../data
+ANNOTATIONS_DIR = $(DATA_DIR)/annotations
+ARCHIVES_DIR = $(DATA_DIR)/sources
+$(shell mkdir -p "$(DATA_DIR)")
 
-pdfs-urls.csv:	papers-urls.csv
+.PHONY: all
+all:	$(ANNOTATIONS_DIR)/pdfs-urls.csv $(ANNOTATIONS_DIR)/sources-urls.csv
+
+$(ANNOTATIONS_DIR)/pdfs-urls.csv:	$(ANNOTATIONS_DIR)/papers-urls.csv
 	sed -e 's#/abs/#/pdf/#' -e 's#$$#.pdf#' $^ > $@
 
-sources-urls.csv:	papers-urls.csv
+$(ANNOTATIONS_DIR)/sources-urls.csv:	$(ANNOTATIONS_DIR)/papers-urls.csv
 	sed -e 's#/abs/#/e-print/#' $^ > $@
 
-papers-urls.csv:	evaluation-tables.json get_papers_links.sh
-	./get_papers_links.sh evaluation-tables.json > $@
+$(ANNOTATIONS_DIR)/papers-urls.csv:	$(ANNOTATIONS_DIR)/evaluation-tables.json get_papers_links.sh
+	./get_papers_links.sh $< > $@
 
-%:	%.gz
-	gunzip -k $^
+$(ANNOTATIONS_DIR)/%:	$(ANNOTATIONS_DIR)/%.gz
+	gunzip -kf $^
 
-evaluation-tables.json.gz:
-	wget https://paperswithcode.com/media/about/evaluation-tables.json.gz
+$(ANNOTATIONS_DIR)/evaluation-tables.json.gz:
+	wget https://paperswithcode.com/media/about/evaluation-tables.json.gz -O $@
 
 .PHONY : clean
 clean :
-	rm -f *.json *.gz *.csv
+	cd "$(ANNOTATIONS_DIR)" && rm -f *.json *.csv
+	#rm -f *.gz
