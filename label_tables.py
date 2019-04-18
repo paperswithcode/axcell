@@ -20,7 +20,9 @@ def get_sota_tasks(filename):
 
 def get_metadata(filename):
     with open(filename, "r") as f:
-        return json.load(f)
+        j = json.load(f)
+    metadata = {x["filename"]:x["caption"] for x in j}
+    return metadata
 
 
 def get_table(filename):
@@ -39,7 +41,7 @@ def get_tables(tables_dir):
         basedir = metadata_filename.parent
         arxiv_id = basedir.name
         all_metadata[arxiv_id] = metadata
-        all_tables[arxiv_id] = {m['filename']:get_table(basedir / m['filename']) for m in metadata}
+        all_tables[arxiv_id] = {t:get_table(basedir / t) for t in metadata}
     return all_metadata, all_tables
 
 
@@ -135,7 +137,21 @@ def match_metric(metric, tables, value):
     return matching_tables
 
 
-def label_tables(tasksfile, tables_dir):
+
+# for each task with sota row
+#     arxivs <- list of papers related to the task
+#     for each (dataset_name, metric_name) of the task:
+#         for each table in arxivs
+#             for each fuzzy_comparator
+#                 count number of task's sota rows found in the table using comparator
+#             comparator <- comparator with the largest number of hits
+#             if hits > hits_threshold:
+#                 mark table with a given dataset_name and metric_name
+#                 mark hit cells with sota-tag, model_name and paper_id
+#                 if table.arxiv_id == paper_id: mark with this-tag
+
+
+def label_tables(tasksfile, tables_dir, output):
     tasks = get_sota_tasks(tasksfile)
     metadata, tables = get_tables(tables_dir)
 
@@ -146,6 +162,8 @@ def label_tables(tasksfile, tables_dir):
 #                for row in table[col]:
 #                    print(row)
 #    return
+
+    tables_with_sota = []
     for task in tasks:
         for dataset in task.datasets:
             for row in dataset.sota.rows:
@@ -163,13 +181,28 @@ def label_tables(tasksfile, tables_dir):
                         #print(f"{metric}\t{row.metrics[metric]}")
                         #print((task.name, dataset.name, metric, row.model_name, row.metrics[metric], row.paper_url))
                         matching = match_metric(metric, tables[arxiv_id], row.metrics[metric])
+                        if len(matching) == 1:
+                            sota_table = matching[0]
+
+                            tables_with_sota.append(
+                                dict(
+                                    task_name=task.name,
+                                    dataset_name=dataset.name,
+                                    metric_name=metric,
+                                    model_name=row.model_name,
+                                    metric_value=row.metrics[metric],
+                                    paper_url=row.paper_url,
+                                    table_caption=metadata[arxiv_id][sota_table],
+                                    table_filename=f"{arxiv_id}/{sota_table}"
+                                )
+                            )
                         #if not matching:
                         #    print(f"{metric}, {row.metrics[metric]}, {arxiv_id}")
-                        print(f"{metric},{len(matching)}")
+                        #print(f"{metric},{len(matching)}")
                         #if matching:
                         #    print((task.name, dataset.name, metric, row.model_name, row.metrics[metric], row.paper_url))
                         #    print(matching)
-
+    pd.DataFrame(tables_with_sota).to_csv(output, index=None)
 
 
 
