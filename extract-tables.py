@@ -10,11 +10,7 @@ import json
 import re
 from ast import literal_eval
 
-
-class Tabular:
-    def __init__(self, data, caption):
-        self.data = data
-        self.caption = caption
+from tabular import Tabular
 
 
 def flatten_tables(soup):

@@ -8,6 +8,7 @@ import re
 import pandas as pd
 import sys
 from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP, InvalidOperation
+from collections import Counter
 
 
 arxiv_url_re = re.compile(r"^https?://(www.)?arxiv.org/(abs|pdf|e-print)/(?P<arxiv_id>\d{4}\.[^./]*)(\.pdf)?$")
@@ -29,7 +30,7 @@ def get_table(filename):
     try:
         return pd.read_csv(filename, header=None, dtype=str).fillna('')
     except pd.errors.EmptyDataError:
-        return []
+        return pd.DataFrame()
 
 
 def get_tables(tables_dir):
@@ -137,6 +138,72 @@ def match_metric(metric, tables, value):
     return matching_tables
 
 
+comparators = [
+    test_near,
+    lambda metric, target: test_near(metric.shift(2), target),
+    lambda metric, target: test_near(metric, target.shift(2)),
+    lambda metric, target: test_near(metric, Decimal("1") - target),
+    lambda metric, target: test_near(metric.shift(2), Decimal("100") - target),
+    lambda metric, target: test_near(metric, (Decimal("1") - target).shift(2))
+]
+
+
+def mark_with_best_comparator(metric_name, arxiv_id, table, values):
+    max_hits = 0
+    best_tags = None
+    rows, cols = table.shape
+
+    for comparator in comparators:
+        hits = 0
+        cell_tags = pd.DataFrame().reindex_like(table).fillna('')
+        for col in range(cols):
+            for row in range(rows):
+                for val in table.iloc[row, col]:
+                    for record in values:
+                        if comparator(record["normalized"], val):
+                            hits += 1
+                            tags = f"<sota>{record['value']}</sota>" +\
+                                   f"<paper>{record['arxiv_id']}</paper>" +\
+                                   f"<model>{record['model']}</model>"
+                            if arxiv_id == record["arxiv_id"]:
+                                tags += "<this_paper>"
+                            cell_tags.iloc[row, col] += tags
+        if max_hits < hits:
+            max_hits = hits
+            best_tags = cell_tags
+
+    if max_hits > 2:
+        return best_tags
+    return None
+    
+
+def match_many(output_dir, metric_name, tables, values):
+    for arxiv_id in tables:
+        for table in tables[arxiv_id]:
+            best = mark_with_best_comparator(metric_name, arxiv_id, tables[arxiv_id][table], values)
+            if best is not None:
+                out = output_dir / arxiv_id
+                out.mkdir(parents=True, exist_ok=True)
+                best.to_csv(out / table.replace("table", "celltags"), header=None, index=None)
+
+
+def normalize_metric(value):
+    value = normalize_float_value(str(value))
+    if value in metric_na:
+        return Decimal("NaN")
+    return Decimal(value)
+
+
+def normalize_cell(cell):
+    matches = float_value_re.findall(cell)
+    matches = [whitespace_re.sub("", match[0]) for match in matches]
+    values = [Decimal(value) for value in matches]
+    return values
+
+
+def normalize_table(table):
+    return table.applymap(normalize_cell)
+
 
 # for each task with sota row
 #     arxivs <- list of papers related to the task
@@ -151,18 +218,34 @@ def match_metric(metric, tables, value):
 #                 if table.arxiv_id == paper_id: mark with this-tag
 
 
-def label_tables(tasksfile, tables_dir, output):
+def label_tables(tasksfile, tables_dir, output, output_dir):
+    output_dir = Path(output_dir)
     tasks = get_sota_tasks(tasksfile)
     metadata, tables = get_tables(tables_dir)
 
-#    for arxiv_id in tables:
-#        for t in tables[arxiv_id]:
-#            table = tables[arxiv_id][t]
-#            for col in table:
-#                for row in table[col]:
-#                    print(row)
-#    return
+    arxivs_by_metrics = {}
 
+    tables = {arxiv_id: {tab: normalize_table(tables[arxiv_id][tab]) for tab in tables[arxiv_id]} for arxiv_id in tables}
+
+    for task in tasks:
+        for dataset in task.datasets:
+            for row in dataset.sota.rows:
+                match = arxiv_url_re.match(row.paper_url)
+                if match is not None:
+                    arxiv_id = match.group("arxiv_id")
+                    for metric in row.metrics:
+                        arxivs_by_metrics.setdefault((task.name, dataset.name, metric), []).append(
+                            dict(arxiv_id=arxiv_id, model=row.model_name, value=row.metrics[metric],
+                                normalized=normalize_metric(row.metrics[metric])
+                            )
+                        )
+
+    for task, dataset, metric in arxivs_by_metrics:
+        records = arxivs_by_metrics[(task, dataset, metric)]
+        tabs = {r["arxiv_id"]: tables[r["arxiv_id"]] for r in records if r["arxiv_id"] in tables}
+        match_many(output_dir, metric, tabs, records)
+
+    return
     tables_with_sota = []
     for task in tasks:
         for dataset in task.datasets:
