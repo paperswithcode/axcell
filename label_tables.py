@@ -142,13 +142,13 @@ comparators = [
     test_near,
     lambda metric, target: test_near(metric.shift(2), target),
     lambda metric, target: test_near(metric, target.shift(2)),
-    lambda metric, target: test_near(metric, Decimal("1") - target),
-    lambda metric, target: test_near(metric.shift(2), Decimal("100") - target),
-    lambda metric, target: test_near(metric, (Decimal("1") - target).shift(2))
+    lambda metric, target: test_near(Decimal("1") - metric, target),
+    lambda metric, target: test_near(Decimal("100") - metric.shift(2), target),
+    lambda metric, target: test_near(Decimal("100") - metric, target.shift(2))
 ]
 
 
-def mark_with_best_comparator(metric_name, arxiv_id, table, values):
+def mark_with_best_comparator(task_name, dataset_name, metric_name, arxiv_id, table, values):
     max_hits = 0
     best_tags = None
     rows, cols = table.shape
@@ -164,7 +164,10 @@ def mark_with_best_comparator(metric_name, arxiv_id, table, values):
                             hits += 1
                             tags = f"<sota>{record['value']}</sota>" +\
                                    f"<paper>{record['arxiv_id']}</paper>" +\
-                                   f"<model>{record['model']}</model>"
+                                   f"<model>{record['model']}</model>" +\
+                                   f"<metric>{metric_name}</metric>" +\
+                                   f"<dataset>{dataset_name}</dataset>" +\
+                                   f"<task>{task_name}</task>"
                             if arxiv_id == record["arxiv_id"]:
                                 tags += "<this_paper>"
                             cell_tags.iloc[row, col] += tags
@@ -172,19 +175,21 @@ def mark_with_best_comparator(metric_name, arxiv_id, table, values):
             max_hits = hits
             best_tags = cell_tags
 
-    if max_hits > 2:
-        return best_tags
-    return None
+    return best_tags
     
 
-def match_many(output_dir, metric_name, tables, values):
+metatables = {}
+def match_many(output_dir, task_name, dataset_name, metric_name, tables, values):
     for arxiv_id in tables:
         for table in tables[arxiv_id]:
-            best = mark_with_best_comparator(metric_name, arxiv_id, tables[arxiv_id][table], values)
+            best = mark_with_best_comparator(task_name, dataset_name, metric_name, arxiv_id, tables[arxiv_id][table], values)
             if best is not None:
-                out = output_dir / arxiv_id
-                out.mkdir(parents=True, exist_ok=True)
-                best.to_csv(out / table.replace("table", "celltags"), header=None, index=None)
+                global metatables
+                key = (arxiv_id, table)
+                if key in metatables:
+                    metatables[key] += best
+                else:
+                    metatables[key] = best
 
 
 def normalize_metric(value):
@@ -243,7 +248,14 @@ def label_tables(tasksfile, tables_dir, output, output_dir):
     for task, dataset, metric in arxivs_by_metrics:
         records = arxivs_by_metrics[(task, dataset, metric)]
         tabs = {r["arxiv_id"]: tables[r["arxiv_id"]] for r in records if r["arxiv_id"] in tables}
-        match_many(output_dir, metric, tabs, records)
+        match_many(output_dir, task, dataset, metric, tabs, records)
+
+    global metatables
+
+    for (arxiv_id, table), best in metatables.items():
+        out = output_dir / arxiv_id
+        out.mkdir(parents=True, exist_ok=True)
+        best.to_csv(out / table.replace("table", "celltags"), header=None, index=None)
 
     return
     tables_with_sota = []
