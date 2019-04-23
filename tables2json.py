@@ -25,6 +25,9 @@ def get_tables(tables_dir):
     all_celltags = {}
     for metadata_filename in tables_dir.glob("1509*/metadata.json"):
         metadata = get_metadata(metadata_filename)
+        for k in metadata:
+            if metadata[k] is None:
+                metadata[k] = ''
         basedir = metadata_filename.parent
         arxiv_id = basedir.name
         all_metadata[arxiv_id] = metadata
@@ -34,6 +37,8 @@ def get_tables(tables_dir):
 
 def t2j(df):
     rows, cols = df.shape
+    if rows == 0 or cols == 0:
+        return [[""]]
     return [[df.iloc[r, c] for c in range(cols)] for r in range(rows)]
 
 
