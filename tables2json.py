@@ -44,18 +44,18 @@ def t2j(df):
 
 def tables2json(tables_dir):
     metadata, tables, celltags = get_tables(tables_dir)
-    all_data = {}
+    all_data = []
     for arxiv_id in metadata:
-        table = {'metadata': metadata[arxiv_id]}
         tabs = []
-        cts = []
-        for tab in tables[arxiv_id]:
-            tabs.append(t2j(tables[arxiv_id][tab]))
-        for ct in celltags[arxiv_id]:
-            cts.append(t2j(celltags[arxiv_id][ct]))
-        table['tables'] = tabs
-        table['celltags'] = cts
-        all_data[arxiv_id] = table
+        for tab in metadata[arxiv_id]:
+            table = dict(
+                name=tab,
+                caption=metadata[arxiv_id][tab],
+                values=t2j(tables[arxiv_id][tab]),
+                tags=t2j(celltags[arxiv_id][tab])
+            )
+            tabs.append(table)
+        all_data.append(dict(paper_id=arxiv_id, tables=tabs))
     print(json.dumps(all_data))
 
 if __name__ == '__main__': fire.Fire(tables2json)
