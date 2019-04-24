@@ -23,7 +23,7 @@ def get_tables(tables_dir):
     all_metadata = {}
     all_tables = {}
     all_celltags = {}
-    for metadata_filename in tables_dir.glob("1509*/metadata.json"):
+    for metadata_filename in tables_dir.glob("*/metadata.json"):
         metadata = get_metadata(metadata_filename)
         for k in metadata:
             if metadata[k] is None:
