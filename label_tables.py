@@ -76,14 +76,18 @@ metric_na = ['-','']
 
 
 
-float_value_re = re.compile(r"([+-]?\s*(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?)")
+float_value_re = re.compile(r"([+-]?\s*((\d{1,2}(,\d{3})+|\d+)(\.\d*)?|\.\d+)([eE][+-]?\d+)?)")
+letters_re = re.compile("[^\W\d_]", re.UNICODE)
+
+# float value possibly with std
+metric_value_re = re.compile(float_value_re.pattern + r"(\s*±\s*" + float_value_re.pattern + ")?")
 whitespace_re = re.compile(r"\s+")
 
 
 def normalize_float_value(s):
-    match = float_value_re.search(s)
+    match = metric_value_re.search(s)
     if match:
-        return whitespace_re.sub("", match.group(0))
+        return whitespace_re.sub("", match.group(1)).replace(",", "")
     return '-'
 
 
@@ -103,7 +107,7 @@ def fuzzy_match(metric, metric_value, target_value):
         return False
     metric_value = Decimal(metric_value)
 
-    for match in float_value_re.findall(target_value):
+    for match in metric_value_re.findall(target_value):
         value = whitespace_re.sub("", match[0])
         value = Decimal(value)
 
@@ -200,8 +204,10 @@ def normalize_metric(value):
 
 
 def normalize_cell(cell):
-    matches = float_value_re.findall(cell)
-    matches = [whitespace_re.sub("", match[0]) for match in matches]
+    if len(letters_re.findall(cell)) > 2:
+        return []
+    matches = metric_value_re.findall(cell)
+    matches = [normalize_float_value(match[0]) for match in matches]
     values = [Decimal(value) for value in matches]
     return values
 
