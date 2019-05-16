@@ -152,6 +152,10 @@ comparators = [
 ]
 
 
+def empty_celltags_like(table):
+    return = pd.DataFrame().reindex_like(table).fillna('')
+
+
 def mark_with_best_comparator(task_name, dataset_name, metric_name, arxiv_id, table, values):
     max_hits = 0
     best_tags = None
@@ -159,7 +163,7 @@ def mark_with_best_comparator(task_name, dataset_name, metric_name, arxiv_id, ta
 
     for comparator in comparators:
         hits = 0
-        cell_tags = pd.DataFrame().reindex_like(table).fillna('')
+        cell_tags = empty_celltags_like(table)
         for col in range(cols):
             for row in range(rows):
                 for val in table.iloc[row, col]:
@@ -180,6 +184,27 @@ def mark_with_best_comparator(task_name, dataset_name, metric_name, arxiv_id, ta
             best_tags = cell_tags
 
     return best_tags
+
+
+def normalize_string(s):
+    return s.lower.strip()
+
+
+def match_str(a, b):
+    return normalize_string(a) == normalize_string(b)
+
+
+def mark_strings(table, tags, values):
+    cell_tags = empty_celltags_like(table)
+    beg, end = tags
+    rows, cols = table.shape
+    for col in range(cols):
+            for row in range(rows):
+                for s in values:
+                    real = table.iloc[row, col]
+                    if match_str(real, s):
+                        cell_tags += f"{beg}{s}{end}"
+    return cell_tags
     
 
 metatables = {}
@@ -187,8 +212,8 @@ def match_many(output_dir, task_name, dataset_name, metric_name, tables, values)
     for arxiv_id in tables:
         for table in tables[arxiv_id]:
             best = mark_with_best_comparator(task_name, dataset_name, metric_name, arxiv_id, tables[arxiv_id][table], values)
+            global metatables
             if best is not None:
-                global metatables
                 key = (arxiv_id, table)
                 if key in metatables:
                     metatables[key] += best
