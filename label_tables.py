@@ -8,7 +8,7 @@ import re
 import pandas as pd
 import sys
 from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP, InvalidOperation
-from collections import Counter
+from collections import Counter, namedtuple
 
 
 arxiv_url_re = re.compile(r"^https?://(www.)?arxiv.org/(abs|pdf|e-print)/(?P<arxiv_id>\d{4}\.[^./]*)(\.pdf)?$")
@@ -142,49 +142,66 @@ def match_metric(metric, tables, value):
     return matching_tables
 
 
-comparators = [
-    test_near,
-    lambda metric, target: test_near(metric.shift(2), target),
-    lambda metric, target: test_near(metric, target.shift(2)),
-    lambda metric, target: test_near(Decimal("1") - metric, target),
-    lambda metric, target: test_near(Decimal("100") - metric.shift(2), target),
-    lambda metric, target: test_near(Decimal("100") - metric, target.shift(2))
-]
+comparators = {
+    "a=b":        test_near,
+    "100a=b":     lambda metric, target: test_near(metric.shift(2), target),
+    "a=100b":     lambda metric, target: test_near(metric, target.shift(2)),
+    "1-a=b":      lambda metric, target: test_near(Decimal("1") - metric, target),
+    "100-a=b":    lambda metric, target: test_near(Decimal("100") - metric, target),
+    "100-100a=b": lambda metric, target: test_near(Decimal("100") - metric.shift(2), target),
+    "100-a=100b": lambda metric, target: test_near(Decimal("100") - metric, target.shift(2))
+}
 
 
 def empty_celltags_like(table):
-    return = pd.DataFrame().reindex_like(table).fillna('')
+    return pd.DataFrame().reindex_like(table).fillna('')
+
+
+def mark_with_comparator(task_name, dataset_name, metric_name, arxiv_id, table, values, comp_name):
+    comparator = comparators[comp_name]
+    rows, cols = table.shape
+    hits = 0
+    cell_tags = empty_celltags_like(table)
+    for col in range(cols):
+        for row in range(rows):
+            for val in table.iloc[row, col]:
+                for record in values:
+                    if comparator(record.normalized, val):
+                        hits += 1
+                        tags = f"<hit><sota>{record.value}</sota>" +\
+                               f"<paper>{record.arxiv_id}</paper>" +\
+                               f"<model>{record.model}</model>" +\
+                               f"<metric>{metric_name}</metric>" +\
+                               f"<dataset>{dataset_name}</dataset>" +\
+                               f"<task>{task_name}</task>"
+                        if arxiv_id == record.arxiv_id:
+                            tags += "<this_paper/>"
+                        tags += f"<comparator>{comp_name}</comparator>" +\
+                                f"<matched_cell>{val}</matched_cell></hit>"
+                        cell_tags.iloc[row, col] += tags
+    return cell_tags, hits
 
 
 def mark_with_best_comparator(task_name, dataset_name, metric_name, arxiv_id, table, values):
     max_hits = 0
     best_tags = None
-    rows, cols = table.shape
 
-    for comparator in comparators:
-        hits = 0
-        cell_tags = empty_celltags_like(table)
-        for col in range(cols):
-            for row in range(rows):
-                for val in table.iloc[row, col]:
-                    for record in values:
-                        if comparator(record["normalized"], val):
-                            hits += 1
-                            tags = f"<sota>{record['value']}</sota>" +\
-                                   f"<paper>{record['arxiv_id']}</paper>" +\
-                                   f"<model>{record['model']}</model>" +\
-                                   f"<metric>{metric_name}</metric>" +\
-                                   f"<dataset>{dataset_name}</dataset>" +\
-                                   f"<task>{task_name}</task>"
-                            if arxiv_id == record["arxiv_id"]:
-                                tags += "<this_paper>"
-                            cell_tags.iloc[row, col] += tags
+    for comp_name in comparators:
+        cell_tags, hits = mark_with_comparator(task_name, dataset_name, metric_name, arxiv_id, table, values, comp_name)
         if max_hits < hits:
             max_hits = hits
             best_tags = cell_tags
 
     return best_tags
 
+
+def mark_with_all_comparators(task_name, dataset_name, metric_name, arxiv_id, table, values):
+    all_tags = empty_celltags_like(table)
+    for comp_name in comparators:
+        cell_tags, _ = mark_with_comparator(task_name, dataset_name, metric_name, arxiv_id, table, values, comp_name)
+        all_tags += cell_tags
+
+    return all_tags
 
 def normalize_string(s):
     return s.lower.strip()
@@ -211,14 +228,13 @@ metatables = {}
 def match_many(output_dir, task_name, dataset_name, metric_name, tables, values):
     for arxiv_id in tables:
         for table in tables[arxiv_id]:
-            best = mark_with_best_comparator(task_name, dataset_name, metric_name, arxiv_id, tables[arxiv_id][table], values)
+            tags = mark_with_all_comparators(task_name, dataset_name, metric_name, arxiv_id, tables[arxiv_id][table], values)
             global metatables
-            if best is not None:
-                key = (arxiv_id, table)
-                if key in metatables:
-                    metatables[key] += best
-                else:
-                    metatables[key] = best
+            key = (arxiv_id, table)
+            if key in metatables:
+                metatables[key] += tags
+            else:
+                metatables[key] = tags
 
 
 def normalize_metric(value):
@@ -252,6 +268,7 @@ def normalize_table(table):
 #                 mark table with a given dataset_name and metric_name
 #                 mark hit cells with sota-tag, model_name and paper_id
 #                 if table.arxiv_id == paper_id: mark with this-tag
+PaperResult = namedtuple("PaperResult", ["arxiv_id", "model", "value", "normalized"])
 
 
 def label_tables(tasksfile, tables_dir, output, output_dir):
@@ -270,15 +287,15 @@ def label_tables(tasksfile, tables_dir, output, output_dir):
                 if match is not None:
                     arxiv_id = match.group("arxiv_id")
                     for metric in row.metrics:
-                        arxivs_by_metrics.setdefault((task.name, dataset.name, metric), []).append(
-                            dict(arxiv_id=arxiv_id, model=row.model_name, value=row.metrics[metric],
+                        arxivs_by_metrics.setdefault((task.name, dataset.name, metric), set()).add(
+                            PaperResult(arxiv_id=arxiv_id, model=row.model_name, value=row.metrics[metric],
                                 normalized=normalize_metric(row.metrics[metric])
                             )
                         )
 
     for task, dataset, metric in arxivs_by_metrics:
         records = arxivs_by_metrics[(task, dataset, metric)]
-        tabs = {r["arxiv_id"]: tables[r["arxiv_id"]] for r in records if r["arxiv_id"] in tables}
+        tabs = {r.arxiv_id: tables[r.arxiv_id] for r in records if r.arxiv_id in tables}
         match_many(output_dir, task, dataset, metric, tabs, records)
 
     global metatables
