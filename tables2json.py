@@ -12,7 +12,11 @@ from label_tables import get_table, get_metadata
 def get_celltags(filename):
     filename = Path(filename)
     if filename.exists():
-        celltags = pd.read_csv(filename, header=None, dtype=str).fillna('')
+
+        try:
+            celltags = pd.read_csv(filename, header=None, dtype=str).fillna('')
+        except pd.errors.EmptyDataError:
+            return pd.DataFrame()
         return celltags
     else:
         return pd.DataFrame()

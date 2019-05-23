@@ -87,8 +87,8 @@ whitespace_re = re.compile(r"\s+")
 def normalize_float_value(s):
     match = metric_value_re.search(s)
     if match:
-        return whitespace_re.sub("", match.group(1)).replace(",", "")
-    return '-'
+        return whitespace_re.sub("", match.group(1)).replace(",", ""), match.group(0).strip()
+    return '-', None
 
 
 def test_near(x, precise):
@@ -102,7 +102,7 @@ def test_near(x, precise):
 
 
 def fuzzy_match(metric, metric_value, target_value):
-    metric_value = normalize_float_value(str(metric_value))
+    metric_value, _ = normalize_float_value(str(metric_value))
     if metric_value in metric_na:
         return False
     metric_value = Decimal(metric_value)
@@ -164,7 +164,7 @@ def mark_with_comparator(task_name, dataset_name, metric_name, arxiv_id, table, 
     cell_tags = empty_celltags_like(table)
     for col in range(cols):
         for row in range(rows):
-            for val in table.iloc[row, col]:
+            for val, val_str in table.iloc[row, col]:
                 for record in values:
                     if comparator(record.normalized, val):
                         hits += 1
@@ -177,7 +177,8 @@ def mark_with_comparator(task_name, dataset_name, metric_name, arxiv_id, table, 
                         if arxiv_id == record.arxiv_id:
                             tags += "<this_paper/>"
                         tags += f"<comparator>{comp_name}</comparator>" +\
-                                f"<matched_cell>{val}</matched_cell></hit>"
+                                f"<matched_cell>{val}</matched_cell>" +\
+                                f"<matched_str>{val_str}</matched_str></hit>"
                         cell_tags.iloc[row, col] += tags
     return cell_tags, hits
 
@@ -238,18 +239,16 @@ def match_many(output_dir, task_name, dataset_name, metric_name, tables, values)
 
 
 def normalize_metric(value):
-    value = normalize_float_value(str(value))
+    value, _ = normalize_float_value(str(value))
     if value in metric_na:
         return Decimal("NaN")
     return Decimal(value)
 
 
 def normalize_cell(cell):
-    if len(letters_re.findall(cell)) > 2:
-        return []
     matches = metric_value_re.findall(cell)
     matches = [normalize_float_value(match[0]) for match in matches]
-    values = [Decimal(value) for value in matches]
+    values = [(Decimal(value[0]), value[1]) for value in matches if value not in metric_na]
     return values
 
 
