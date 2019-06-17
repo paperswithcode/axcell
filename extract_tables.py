@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import sys
-from bs4 import BeautifulSoup, Comment
+from bs4 import BeautifulSoup, Comment, NavigableString
 import fire
 from pathlib import Path
 import pandas as pd
@@ -69,6 +69,11 @@ def fix_table(df):
     return unescape_table_content(df)
 
 
+def move_out_references(table):
+    for anchor in table.select('a[href^="#"]'):
+        anchor.append(NavigableString("[xxref-"+anchor["href"][1:]+"]"))
+
+
 def html2data(table):
     data = pd.read_html(str(table), match='')
     if len(data) > 1:
@@ -86,13 +91,24 @@ def save_tables(data, outdir):
     for num, table in enumerate(data, 1):
         filename = f"table_{num:02}.csv"
         save_table(table.data, outdir / filename)
-        metadata.append(dict(filename=filename, caption=table.caption))
+        metadata.append(dict(filename=filename, caption=table.caption, figure_id=table.figure_id))
     with open(outdir / "metadata.json", "w") as f:
         json.dump(metadata, f)
 
 
 def deepclone(elem):
     return BeautifulSoup(str(elem), "lxml")
+
+
+def set_ids_by_labels(soup):
+    captions = soup.select(".caption")
+    prefix = "tex4ht:label?:"
+    for caption in captions:
+        el = caption.next_sibling
+        if isinstance(el, Comment) and el.string.startswith(prefix):
+            label = el.string[len(prefix):].strip()
+            for table in caption.parent.select("table"):
+                table["data-figure-id"] = label
 
 
 def extract_tables(filename, outdir):
@@ -102,13 +118,16 @@ def extract_tables(filename, outdir):
     outdir.mkdir(parents=True, exist_ok=True)
     soup = BeautifulSoup(html, "lxml")
     flatten_tables(soup)
+    set_ids_by_labels(soup)
     tables = soup.select("div.tabular")
 
     data = []
     for table in tables:
-        if table.find("table") is not None:
+        table_el = table.find("table")
+        if table_el is not None:
             float_div = table.find_parent("div", class_="float")
             #print(table)
+            move_out_references(table)
             escape_table_content(table)
             #print(table)
             tab = html2data(table)
@@ -123,8 +142,8 @@ def extract_tables(filename, outdir):
                 for t in float_div.find_all("table"):
                     t.extract()
                 caption = float_div.get_text()
-
-            data.append(Tabular(tab, caption))
+            figure_id = table_el.get("data-figure-id")
+            data.append(Tabular(tab, caption, figure_id))
 
     save_tables(data, outdir)
 
