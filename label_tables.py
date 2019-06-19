@@ -270,8 +270,8 @@ def normalize_table(table):
 PaperResult = namedtuple("PaperResult", ["arxiv_id", "model", "value", "normalized"])
 
 
-def label_tables(tasksfile, tables_dir, output, output_dir):
-    output_dir = Path(output_dir)
+def label_tables(tasksfile, tables_dir):
+    output_dir = Path(tables_dir)
     tasks = get_sota_tasks(tasksfile)
     metadata, tables = get_tables(tables_dir)
 
@@ -303,49 +303,6 @@ def label_tables(tasksfile, tables_dir, output, output_dir):
         out = output_dir / arxiv_id
         out.mkdir(parents=True, exist_ok=True)
         best.to_csv(out / table.replace("table", "celltags"), header=None, index=None)
-
-    return
-    tables_with_sota = []
-    for task in tasks:
-        for dataset in task.datasets:
-            for row in dataset.sota.rows:
-                # TODO: some results have more than one url, CoRR + journal / conference
-                # check if we have the same results for both
-
-                match = arxiv_url_re.match(row.paper_url)
-                if match is not None:
-                    arxiv_id = match.group("arxiv_id")
-                    if arxiv_id not in tables:
-                        print(f"No tables for {arxiv_id}. Skipping", file=sys.stderr)
-                        continue
-
-                    for metric in row.metrics:
-                        #print(f"{metric}\t{row.metrics[metric]}")
-                        #print((task.name, dataset.name, metric, row.model_name, row.metrics[metric], row.paper_url))
-                        matching = match_metric(metric, tables[arxiv_id], row.metrics[metric])
-                        if len(matching) == 1:
-                            sota_table = matching[0]
-
-                            tables_with_sota.append(
-                                dict(
-                                    task_name=task.name,
-                                    dataset_name=dataset.name,
-                                    metric_name=metric,
-                                    model_name=row.model_name,
-                                    metric_value=row.metrics[metric],
-                                    paper_url=row.paper_url,
-                                    table_caption=metadata[arxiv_id][sota_table],
-                                    table_filename=f"{arxiv_id}/{sota_table}"
-                                )
-                            )
-                        #if not matching:
-                        #    print(f"{metric}, {row.metrics[metric]}, {arxiv_id}")
-                        #print(f"{metric},{len(matching)}")
-                        #if matching:
-                        #    print((task.name, dataset.name, metric, row.model_name, row.metrics[metric], row.paper_url))
-                        #    print(matching)
-    pd.DataFrame(tables_with_sota).to_csv(output, index=None)
-
 
 
 if __name__ == "__main__": fire.Fire(label_tables)
