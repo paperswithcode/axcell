@@ -17,7 +17,10 @@ Directory structure:
 └── prepare-data
 ```
 
-To preprocess data, run:
+
+To preprocess data and extract tables, run:
 ```cd prepare-data
-make -j 8 -i```
+conda env create -f environment.yml
+source activate xtables
+make -j 8 -i extract_all```
 where `8` is number of jobs to run simultaneously.
