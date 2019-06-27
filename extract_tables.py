@@ -114,7 +114,7 @@ def set_ids_by_labels(soup):
 def extract_tables(filename, outdir):
     with open(filename, "rb") as f:
         html = f.read()
-    outdir = Path(outdir) / Path(filename).stem
+    outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     soup = BeautifulSoup(html, "lxml")
     flatten_tables(soup)
