@@ -7,7 +7,7 @@ HTMLS_DIR = $(ARXIV_DIR)/htmls
 FIXED_HTMLS_DIR = $(ARXIV_DIR)/htmls-clean
 TABLES_DIR = $(ARXIV_DIR)/tables
 
-ARCHIVES    = $(wildcard $(ARCHIVES_DIR)/**/*.gz)
+ARCHIVES    = $(wildcard $(ARCHIVES_DIR)/**.gz)
 UNPACKS     = $(patsubst $(ARCHIVES_DIR)/%.gz,$(UNPACKED_DIR)/%,$(ARCHIVES))
 HTMLS       = $(patsubst $(ARCHIVES_DIR)/%.gz,$(HTMLS_DIR)/%.html,$(ARCHIVES))
 FIXED_HTMLS = $(patsubst $(ARCHIVES_DIR)/%.gz,$(FIXED_HTMLS_DIR)/%.html,$(ARCHIVES))
@@ -17,6 +17,15 @@ $(shell mkdir -p "$(DATA_DIR)" "$(UNPACKED_DIR)" "$(HTMLS_DIR)" "$(FIXED_HTMLS_D
 
 .PHONY: all
 all:	$(ANNOTATIONS_DIR)/pdfs-urls.csv $(ANNOTATIONS_DIR)/sources-urls.csv extract_all
+
+.PHONY: test
+test: DATA_DIR = test/data
+test:
+	mkdir -p $(ARCHIVES_DIR)
+	tar czf $(ARCHIVES_DIR)/paper.gz -C test/src .
+	$(MAKE) DATA_DIR=$(DATA_DIR) extract_all
+	cat $(TABLES_DIR)/paper/table_01.csv
+	diff $(TABLES_DIR)/paper/table_01.csv test/src/table_01.csv
 
 extract_all: $(TABLES)
 
@@ -52,6 +61,7 @@ $(ANNOTATIONS_DIR)/%:	$(ANNOTATIONS_DIR)/%.gz
 
 $(ANNOTATIONS_DIR)/evaluation-tables.json.gz:
 	wget https://paperswithcode.com/media/about/evaluation-tables.json.gz -O $@
+
 
 .PHONY : clean
 clean :
