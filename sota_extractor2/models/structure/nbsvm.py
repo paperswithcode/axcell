@@ -39,10 +39,11 @@ def get_number_of_classes(y):
         return y.shape[1]
 
 class NBSVM:
-    def __init__(self, solver='liblinear', dual=True):
+    def __init__(self, solver='liblinear', dual=True, C=4, ngram_range=(1, 2)):
         self.solver = solver  # 'lbfgs' - large, liblinear for small datasets
         self.dual = dual
-        pass
+        self.C = C
+        self.ngram_range = ngram_range
 
     re_tok = re.compile(f'([{string.punctuation}“”¨«»®´·º½¾¿¡§£₤‘’])')
     
@@ -56,13 +57,13 @@ class NBSVM:
     def get_mdl(self, y):
         y = y.values
         r = np.log(self.pr(1, y) / self.pr(0, y))
-        m = LogisticRegression(C=4, dual=self.dual, solver=self.solver, max_iter=1000)
+        m = LogisticRegression(C=self.C, dual=self.dual, solver=self.solver, max_iter=1000)
         x_nb = self.trn_term_doc.multiply(r)
         return m.fit(x_nb, y), r
 
     def bow(self, X_train):
         self.n = X_train.shape[0]
-        self.vec = TfidfVectorizer(ngram_range=(1, 2), tokenizer=self.tokenize,
+        self.vec = TfidfVectorizer(ngram_range=self.ngram_range, tokenizer=self.tokenize,
                                 min_df=3, max_df=0.9, strip_accents='unicode', use_idf=1,
                                 smooth_idf=1, sublinear_tf=1)
         return self.vec.fit_transform(X_train)
