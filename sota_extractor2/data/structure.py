@@ -73,22 +73,29 @@ def filter_cells(cell):
     return re.search("[a-zA-Z]{2,}", cell.vals[1]) is not None
 
 
-def evidence_for_table(table, paper_limit=10, corpus_limit=1):
+interesting_types = ["model-paper", "model-best", "model-competing", "dataset", "dataset-sub",  "dataset-task"]
+
+
+def evidence_for_table(table, paper_limit=10, corpus_limit=1, limit_type='interesting'):
+    def get_limits(cell_type):
+        if limit_type == 'interesting' and (cell_type.strip() in interesting_types) or (limit_type == 'max'):
+            return dict(paper_limit=1000, corpus_limit=1000)
+        return dict(paper_limit=paper_limit, corpus_limit=corpus_limit)
     records = [
         record
             for cell in consume_cells(table.matrix, table.matrix_gold_tags) if filter_cells(cell)
-            for evidence in fetch_evidence(cell.vals[0], paper_id=table.paper_id, paper_limit=paper_limit, corpus_limit=corpus_limit)
+            for evidence in fetch_evidence(cell.vals[0], paper_id=table.paper_id, **get_limits(cell.vals[1]))
             for record in create_evidence_records(evidence, cell, table=table)
     ]
     df = pd.DataFrame.from_records(records)
     return df
 
 
-def evidence_for_tables(tables, paper_limit=100, corpus_limit=20):
-    return pd.concat([evidence_for_table(table,  paper_limit=paper_limit, corpus_limit=corpus_limit) for table in progress_bar(tables)])
-
-def prepare_data(tables, csv_path):
-    df = evidence_for_tables(tables)
+def prepare_data(tables, csv_path, limit_type='interesting'):
+    df = pd.concat([evidence_for_table(table,  
+                                       paper_limit=100,
+                                       corpus_limit=20,
+                                       limit_type=limit_type) for table in progress_bar(tables)])
     df = df.drop_duplicates(
         ["cell_content", "text_highlited", "cell_type", "this_paper"])
     print("Number of text fragments ", len(df))
