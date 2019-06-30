@@ -14,3 +14,11 @@ goldtags_dump = data / "dumps" / "goldtags-2019.06.28_0916.json.gz"
 
 
 elastic = dict(hosts=['localhost'], timeout=20)
+
+
+arxiv = data/'arxiv'
+htmls_raw = arxiv/'htmls'
+htmls_clean = arxiv/'htmls-clean'
+
+datasets = data/"datasets"
+datasets_structure = datasets/"structure"
