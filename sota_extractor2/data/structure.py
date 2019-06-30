@@ -58,6 +58,7 @@ def create_evidence_records(textfrag, cell, table):
             yield {"text_sha1": text_sha1,
                    "text_highlited": text_highlited,
                    "text": text,
+                   "header": textfrag.header,
                    "cell_type": cell.vals[1],
                    "cell_content": fix_refs(cell.vals[0]),
                    "this_paper": textfrag.paper_id == table.paper_id,
