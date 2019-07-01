@@ -66,9 +66,9 @@ def resolve_references_in_html(args):
     update_references(html, mapping)
     save_html(output, html)
 
-DUMP_REFERENCES_PATH = Path("/home/ubuntu/pwc/mycache/references-short.json")
+#DUMP_REFERENCES_PATH = Path("/home/ubuntu/pwc/mycache/references-short.json")
 
-TRIE_PATH = Path("/home/ubuntu/pwc/mycache/automaton.pkl")
+#TRIE_PATH = Path("/home/ubuntu/pwc/mycache/automaton.pkl")
 
 def normalize_references(source_path, target_path, automaton, jobs=1):
     global reference_trie

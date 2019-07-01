@@ -13,3 +13,5 @@ dependencies:
 - python=3.7.1
 - pyahocorasick=1.4.0
 - Unidecode=1.0.23
+- elasticsearch-dsl=7.0.0
+- ipython=7.5.0

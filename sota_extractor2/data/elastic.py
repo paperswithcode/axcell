@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 
 from elasticsearch_dsl import Document, Boolean, Object, \
     analyzer, InnerDoc, Keyword, Text, Integer, tokenizer, token_filter
+from elasticsearch_dsl.serializer import serializer
 
 from IPython.display import display, Markdown
 
@@ -122,6 +123,9 @@ class Paper(Document):
 
     class Index:
         name = 'papers'
+
+    def to_json(self):
+        return serializer.dumps(self.to_dict())
 
     def to_df(self):
         return pd.DataFrame({'header': [f.header for f in self.fragments],

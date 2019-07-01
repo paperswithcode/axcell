@@ -6,14 +6,16 @@ UNPACKED_DIR = $(ARXIV_DIR)/unpacked_sources
 HTMLS_DIR = $(ARXIV_DIR)/htmls
 FIXED_HTMLS_DIR = $(ARXIV_DIR)/htmls-clean
 TABLES_DIR = $(ARXIV_DIR)/tables
+TEXTS_DIR = $(ARXIV_DIR)/texts
 
 ARCHIVES    = $(wildcard $(ARCHIVES_DIR)/**.gz)
 UNPACKS     = $(patsubst $(ARCHIVES_DIR)/%.gz,$(UNPACKED_DIR)/%,$(ARCHIVES))
 HTMLS       = $(patsubst $(ARCHIVES_DIR)/%.gz,$(HTMLS_DIR)/%.html,$(ARCHIVES))
 FIXED_HTMLS = $(patsubst $(ARCHIVES_DIR)/%.gz,$(FIXED_HTMLS_DIR)/%.html,$(ARCHIVES))
 TABLES      = $(patsubst $(ARCHIVES_DIR)/%.gz,$(TABLES_DIR)/%,$(ARCHIVES))
+TEXTS       = $(patsubst $(ARCHIVES_DIR)/%.gz,$(TEXTS_DIR)/%.json,$(ARCHIVES))
 
-$(shell mkdir -p "$(DATA_DIR)" "$(ANNOTATIONS_DIR)" "$(UNPACKED_DIR)" "$(HTMLS_DIR)" "$(FIXED_HTMLS_DIR)" "$(TABLES_DIR)")
+$(shell mkdir -p "$(DATA_DIR)" "$(ANNOTATIONS_DIR)" "$(UNPACKED_DIR)" "$(HTMLS_DIR)" "$(FIXED_HTMLS_DIR)" "$(TABLES_DIR)" "$(TEXTS_DIR)")
 
 .PHONY: all
 all:	$(ANNOTATIONS_DIR)/pdfs-urls.csv $(ANNOTATIONS_DIR)/sources-urls.csv extract_all
@@ -27,7 +29,17 @@ test:
 	cat $(TABLES_DIR)/paper/table_01.csv
 	diff $(TABLES_DIR)/paper/table_01.csv test/src/table_01.csv
 
-extract_all: $(TABLES)
+.PHONY: extract_all extract_texts extract_tables fix_htmls_all convert_all unpack_all
+
+extract_all: extract_tables extract_texts
+
+extract_texts: $(TEXTS)
+
+$(TEXTS): $(TEXTS_DIR)/%.json: $(FIXED_HTMLS_DIR)/%.html
+	python ./extract_texts.py $^ $@
+
+
+extract_tables: $(TABLES)
 
 fix_htmls_all: $(FIXED_HTMLS)
 
