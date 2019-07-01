@@ -5,7 +5,7 @@ import string
 import ahocorasick
 import pickle
 from multiprocessing import Pool
-from sota_extractor2.data.elastic import get_text, Paper
+from sota_extractor2.data.doc_utils import get_text, read_html
 
 punctuation_table = str.maketrans('', '', string.punctuation)
 
@@ -62,7 +62,7 @@ def save_html(path, html):
 def resolve_references_in_html(args):
     file, output = args
     output.parent.mkdir(exist_ok=True, parents=True)
-    html = Paper.read_html(f)
+    html = read_html(file)
     bibitems = get_bibitems(html)
     mapping = resolve_references(reference_trie, bibitems)
     update_references(html, mapping)
