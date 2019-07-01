@@ -11,3 +11,5 @@ dependencies:
 - beautifulsoup4=4.7.1
 - numpy=1.15.4
 - python=3.7.1
+- pyahocorasick=1.4.0
+- Unidecode=1.0.23

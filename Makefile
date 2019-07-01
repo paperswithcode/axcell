@@ -13,7 +13,7 @@ HTMLS       = $(patsubst $(ARCHIVES_DIR)/%.gz,$(HTMLS_DIR)/%.html,$(ARCHIVES))
 FIXED_HTMLS = $(patsubst $(ARCHIVES_DIR)/%.gz,$(FIXED_HTMLS_DIR)/%.html,$(ARCHIVES))
 TABLES      = $(patsubst $(ARCHIVES_DIR)/%.gz,$(TABLES_DIR)/%,$(ARCHIVES))
 
-$(shell mkdir -p "$(DATA_DIR)" "$(UNPACKED_DIR)" "$(HTMLS_DIR)" "$(FIXED_HTMLS_DIR)" "$(TABLES_DIR)")
+$(shell mkdir -p "$(DATA_DIR)" "$(ANNOTATIONS_DIR)" "$(UNPACKED_DIR)" "$(HTMLS_DIR)" "$(FIXED_HTMLS_DIR)" "$(TABLES_DIR)")
 
 .PHONY: all
 all:	$(ANNOTATIONS_DIR)/pdfs-urls.csv $(ANNOTATIONS_DIR)/sources-urls.csv extract_all
