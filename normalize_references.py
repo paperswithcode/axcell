@@ -26,9 +26,7 @@ def resolve_references(reference_trie, bibitems):
             for author in ref['authors']:
                 if normalize_title(author['name'].split(' ')[-1]) not in normalize_title(text):
                     break
-            else: 
-                print(text)
-                print(ref['title'])
+            else:
                 found += 1
                 resolved[bib_id] = ref['id']
                 break
@@ -79,7 +77,7 @@ def normalize_references(source_path, target_path, automaton, jobs=1):
     with open(automaton, 'rb') as f:
         reference_trie = pickle.load(f)
     with Pool(jobs) as p:
-        params = [(file, target_path / file.name) for file in source_path.glob("**/*.html")]
+        params = [(file, target_path / file.relative_to(source_path)) for file in source_path.glob("**/*.html")]
         p.map(resolve_references_in_html, params)
 
 if __name__ == "__main__": fire.Fire(normalize_references)
