@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import fire
 from sota_extractor2.data.elastic import Paper
 from pathlib import Path

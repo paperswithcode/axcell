@@ -69,11 +69,12 @@ class NodeWrap(dict):
         vals = pprint.pformat({to_snake_case(k): cut(str(self[k]))  for k in self.keys()})
         return f"NodeWrap({vals})"
 
-def load_gql_dump(data_or_file):
+def load_gql_dump(data_or_file, compressed=True):
     if isinstance(data_or_file, dict):
         papers_data = data_or_file
     else:
-        with gzip.open(data_or_file, "rb") as f:
+        open_fn = gzip.open if compressed else open
+        with open_fn(data_or_file, "rt") as f:
                 papers_data = json.load(f)
     data = papers_data["data"]
     return {k:wrap_dict(v) for k,v in data.items()}

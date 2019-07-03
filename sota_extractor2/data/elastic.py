@@ -12,6 +12,7 @@ from elasticsearch_dsl import connections
 
 from sota_extractor2.data.doc_utils import get_text, content_in_section, group_content, set_ids_by_labels, read_html
 from .. import config
+from pathlib import Path
 
 
 def setup_default_connection():
@@ -108,6 +109,20 @@ class Fragment(Document):
     class Index:
         name = 'paper-fragments'
 
+    @classmethod
+    def from_json(cls, json):
+        if isinstance(json, str):
+            source = serializer.loads(json)
+        else:
+            source = json
+        data = dict(
+            _source = source,
+            _id = f"{source['paper_id']}_{source['order']}",
+            _index = 'paper-fragments',
+            _type = 'doc')
+        return cls.from_es(data)
+
+
     def __repr__(self):
         return f"# {self.header},\n" \
             f"{self.text}" \
@@ -125,7 +140,34 @@ class Paper(Document):
         name = 'papers'
 
     def to_json(self):
-        return serializer.dumps(self.to_dict())
+        data = self.to_dict()
+        return serializer.dumps(d)
+
+    @classmethod
+    def from_json(cls, json, paper_id=None):
+        if isinstance(json, str):
+            source = serializer.loads(json)
+        else:
+            source = json
+        fragments = source.pop('fragments', [])
+        data = dict(
+            _source = source,
+            _index = 'papers',
+            _type = 'doc')
+        if paper_id is not None:
+            data['_id'] = paper_id
+
+        paper = cls.from_es(data)
+        paper.fragments = Fragments([Fragment.from_json(f) for f in fragments])
+        return paper
+
+    @classmethod
+    def from_file(cls, path):
+        path = Path(path)
+        paper_id = path.stem
+        with open(path, "rt") as f:
+            json = f.read()
+        return cls.from_json(json, paper_id)
 
     def to_df(self):
         return pd.DataFrame({'header': [f.header for f in self.fragments],

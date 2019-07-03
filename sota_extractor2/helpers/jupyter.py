@@ -16,7 +16,10 @@ def display_table(table, structure=None):
         matrix - 2d ndarray with cell values
         strucutre - 2d ndarray with structure annotation
     """
-    matrix = table.matrix
+    if hasattr(table, 'matrix'):
+        matrix = table.matrix
+    else:
+        matrix = table
     if structure is None: structure = table.matrix_gold_tags
     html = []
     html.append('<link href="http://10.0.1.145:8001/static/css/main.bd3d2d63.chunk.css" rel="stylesheet">')
