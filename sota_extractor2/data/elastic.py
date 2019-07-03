@@ -1,6 +1,5 @@
 import pandas as pd
 import re
-from bs4 import BeautifulSoup
 
 from elasticsearch_dsl import Document, Boolean, Object, \
     analyzer, InnerDoc, Keyword, Text, Integer, tokenizer, token_filter
@@ -141,7 +140,7 @@ class Paper(Document):
 
     def to_json(self):
         data = self.to_dict()
-        return serializer.dumps(d)
+        return serializer.dumps(data)
 
     @classmethod
     def from_json(cls, json, paper_id=None):

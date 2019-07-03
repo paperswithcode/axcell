@@ -1,4 +1,4 @@
-DATA_DIR = ../data
+DATA_DIR = data
 ANNOTATIONS_DIR = $(DATA_DIR)/annotations
 ARXIV_DIR = $(DATA_DIR)/arxiv
 ARCHIVES_DIR = $(ARXIV_DIR)/sources
@@ -8,26 +8,25 @@ FIXED_HTMLS_DIR = $(ARXIV_DIR)/htmls-clean
 TABLES_DIR = $(ARXIV_DIR)/tables
 TEXTS_DIR = $(ARXIV_DIR)/texts
 
-ARCHIVES    = $(wildcard $(ARCHIVES_DIR)/**.gz)
-UNPACKS     = $(patsubst $(ARCHIVES_DIR)/%.gz,$(UNPACKED_DIR)/%,$(ARCHIVES))
-HTMLS       = $(patsubst $(ARCHIVES_DIR)/%.gz,$(HTMLS_DIR)/%.html,$(ARCHIVES))
-FIXED_HTMLS = $(patsubst $(ARCHIVES_DIR)/%.gz,$(FIXED_HTMLS_DIR)/%.html,$(ARCHIVES))
-TABLES      = $(patsubst $(ARCHIVES_DIR)/%.gz,$(TABLES_DIR)/%,$(ARCHIVES))
-TEXTS       = $(patsubst $(ARCHIVES_DIR)/%.gz,$(TEXTS_DIR)/%.json,$(ARCHIVES))
-
-$(shell mkdir -p "$(DATA_DIR)" "$(ANNOTATIONS_DIR)" "$(UNPACKED_DIR)" "$(HTMLS_DIR)" "$(FIXED_HTMLS_DIR)" "$(TABLES_DIR)" "$(TEXTS_DIR)")
+ARCHIVES    := $(shell find $(ARCHIVES_DIR) -name '*.gz' -type f 2>/dev/null)
+UNPACKS     := $(patsubst $(ARCHIVES_DIR)/%.gz,$(UNPACKED_DIR)/%,$(ARCHIVES))
+HTMLS       := $(patsubst $(ARCHIVES_DIR)/%.gz,$(HTMLS_DIR)/%.html,$(ARCHIVES))
+FIXED_HTMLS := $(patsubst $(ARCHIVES_DIR)/%.gz,$(FIXED_HTMLS_DIR)/%.html,$(ARCHIVES))
+TABLES      := $(patsubst $(ARCHIVES_DIR)/%.gz,$(TABLES_DIR)/%,$(ARCHIVES))
+TEXTS       := $(patsubst $(ARCHIVES_DIR)/%.gz,$(TEXTS_DIR)/%.json,$(ARCHIVES))
 
 .PHONY: all
 all:	$(ANNOTATIONS_DIR)/pdfs-urls.csv $(ANNOTATIONS_DIR)/sources-urls.csv extract_all
 
 .PHONY: test
 test: DATA_DIR = test/data
+test: TABLE_FILE = $(TABLES_DIR)/paper/table_01.csv
 test:
 	mkdir -p $(ARCHIVES_DIR)
 	tar czf $(ARCHIVES_DIR)/paper.gz -C test/src .
-	$(MAKE) DATA_DIR=$(DATA_DIR) extract_all
-	cat $(TABLES_DIR)/paper/table_01.csv
-	diff $(TABLES_DIR)/paper/table_01.csv test/src/table_01.csv
+	$(MAKE) DATA_DIR=$(DATA_DIR) --always-make extract_all
+	cat $(TABLE_FILE)
+	diff $(TABLE_FILE) test/src/table_01.csv
 
 .PHONY: extract_all extract_texts extract_tables fix_htmls_all convert_all unpack_all
 
@@ -72,6 +71,7 @@ $(ANNOTATIONS_DIR)/%:	$(ANNOTATIONS_DIR)/%.gz
 	gunzip -kf $^
 
 $(ANNOTATIONS_DIR)/evaluation-tables.json.gz:
+	$(shell mkdir -p "$(ANNOTATIONS_DIR)")
 	wget https://paperswithcode.com/media/about/evaluation-tables.json.gz -O $@
 
 

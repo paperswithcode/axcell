@@ -26,7 +26,7 @@ conda env create -f environment.yml
 source activate xtables
 make -j 8 -i extract_all > stdout.log 2> stderr.log
 ```
-where `8` is number of jobs to run simultaneously.
+where `8` is number of jobs to run simultaneously. Optionally one can specify path to data directory, f.e., `make DATA_DIR=mydata ...`.
 
 ## Test
 To test the whole extraction on a single file run

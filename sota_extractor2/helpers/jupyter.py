@@ -1,5 +1,5 @@
 from IPython.core.display import display, HTML
-
+from .table_style import table_style
 def set_seed(seed, name):
     import torch
     import numpy as np
@@ -10,6 +10,8 @@ def set_seed(seed, name):
     np.random.seed(seed)
 
 def display_html(s): return display(HTML(s))
+
+
 
 def display_table(table, structure=None):
     """
@@ -22,7 +24,7 @@ def display_table(table, structure=None):
         matrix = table
     if structure is None: structure = table.matrix_gold_tags
     html = []
-    html.append('<link href="http://10.0.1.145:8001/static/css/main.bd3d2d63.chunk.css" rel="stylesheet">')
+    html.append(table_style)
     html.append('<div class="tableWrapper">')
     html.append("<table>")
     for row,struc_row in zip(matrix, structure):

@@ -116,7 +116,7 @@ def extract_tables(filename, outdir):
         html = f.read()
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
-    soup = BeautifulSoup(html, "lxml")
+    soup = BeautifulSoup(html, "lxml", from_encoding="utf-8")
     flatten_tables(soup)
     set_ids_by_labels(soup)
     tables = soup.select("div.tabular")

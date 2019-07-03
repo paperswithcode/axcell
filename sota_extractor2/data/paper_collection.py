@@ -39,7 +39,6 @@ class PaperCollection:
         outer_join = set(texts).union(set(tables))
 
         self._papers = {k: Paper(texts.get(k), tables.get(k), annotations.get(k)) for k in outer_join}
-        self.annotations = annotations
 
     def __len__(self):
         return len(self._papers)
