@@ -20,10 +20,11 @@ class Table:
         self.df = df.applymap(lambda x: Cell(value=x))
         if annotations is not None:
             self.gold_tags = annotations.gold_tags.strip()
-            rows, cols = annotations.matrix_gold_tags.shape
-            for r in range(rows):
-                for c in range(cols):
-                    self.df.iloc[r,c].gold_tags = annotations.matrix_gold_tags.iloc[r,c].strip()
+            tags = annotations.matrix_gold_tags
+            if self.df.shape != (0,0):
+                for r, row in enumerate(tags):
+                    for c, cell in enumerate(row):
+                        self.df.iloc[r,c].gold_tags = cell.strip()
         else:
             self.gold_tags = ''
 
@@ -33,10 +34,14 @@ class Table:
             df = pd.read_csv(path, header=None, dtype=str).fillna('')
         except pd.errors.EmptyDataError:
             df = pd.DataFrame()
-        return cls(df, metadata.get('caption'), metadata.get('figure_id'), annotations)
+        if annotations is not None:
+            table_ann = annotations.table_set.filter(name=metadata['filename']) + [None]
+            table_ann = table_ann[0]
+        else:
+            table_ann = None
+        return cls(df, metadata.get('caption'), metadata.get('figure_id'), table_ann)
 
     def display(self):
-
         display_table(self.df.applymap(lambda x: x.value).values, self.df.applymap(lambda x: x.gold_tags).values)
 
 def read_tables(path, annotations):
