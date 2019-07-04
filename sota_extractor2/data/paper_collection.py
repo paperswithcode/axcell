@@ -3,6 +3,8 @@ from .table import Table, read_tables
 from .json import load_gql_dump
 from pathlib import Path
 import re
+from tqdm import tqdm
+from joblib import Parallel, delayed
 
 class Paper:
     def __init__(self, text, tables, annotations):
@@ -15,11 +17,11 @@ class Paper:
 
 
 arxiv_version_re = re.compile(r"v\d+$")
-def clean_arxiv_version(arxiv_id):
+def clear_arxiv_version(arxiv_id):
     return arxiv_version_re.sub("", arxiv_id)
 
 
-class PaperCollection:
+class PaperCollection(dict):
     def __init__(self, path, load_texts=True, load_tables=True):
         self.path = path
         self.load_texts = load_texts
@@ -50,27 +52,20 @@ class PaperCollection:
         return iter(self._papers)
 
     def _load_texts(self):
-        texts = {}
-
-        for f in (self.path / "texts").glob("**/*.json"):
-            text = PaperText.from_file(f)
-            texts[clean_arxiv_version(text.meta.id)] = text
-        return texts
+        files = list((self.path / "texts").glob("**/*.json"))
+        texts = Parallel(n_jobs=-1, prefer="processes")(delayed(PaperText.from_file)(f) for f in files)
+        return {clear_arxiv_version(text.meta.id): text for text in texts}
 
 
     def _load_tables(self, annotations):
-        tables = {}
-
-        for f in (self.path / "tables").glob("**/metadata.json"):
-            paper_dir = f.parent
-            tbls = read_tables(paper_dir, annotations)
-            tables[clean_arxiv_version(paper_dir.name)] = tbls
-        return tables
+        files = list((self.path / "tables").glob("**/metadata.json"))
+        tables = Parallel(n_jobs=-1, prefer="processes")(delayed(read_tables)(f.parent, annotations) for f in files)
+        return {clear_arxiv_version(f.parent.name): tbls for f, tbls in zip(files, tables)}
 
     def _load_annotated_papers(self):
         dump = load_gql_dump(self.path / "structure-annotations.json.gz", compressed=True)["allPapers"]
         annotations = {}
         for a in dump:
-            arxiv_id = clean_arxiv_version(a.arxiv_id)
+            arxiv_id = clear_arxiv_version(a.arxiv_id)
             annotations[arxiv_id] = a
         return annotations

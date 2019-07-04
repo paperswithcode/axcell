@@ -1,7 +1,8 @@
 import pandas as pd
 import json
 from pathlib import Path
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from typing import List
 from ..helpers.jupyter import display_table
 
@@ -9,15 +10,25 @@ from ..helpers.jupyter import display_table
 class Cell:
     value: str
     gold_tags: str = ''
-    refs: List[str] = None
+    refs: List[str] = field(default_factory=list)
 
+
+reference_re = re.compile(r"\[(xxref-[^] ]*)\]")
+def extract_references(s):
+    parts = reference_re.split(s)
+    return ''.join(parts[::2]), parts[1::2]
+
+
+def str2cell(s):
+    value, refs = extract_references(s)
+    return Cell(value=value, refs=refs)
 
 class Table:
     def __init__(self, df, caption=None, figure_id=None, annotations=None):
         self.df = df
         self.caption = caption
         self.figure_id = figure_id
-        self.df = df.applymap(lambda x: Cell(value=x))
+        self.df = df.applymap(str2cell)
         if annotations is not None:
             self.gold_tags = annotations.gold_tags.strip()
             tags = annotations.matrix_gold_tags
