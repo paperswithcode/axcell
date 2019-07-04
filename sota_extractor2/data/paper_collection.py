@@ -3,6 +3,8 @@ from .table import Table, read_tables
 from .json import load_gql_dump
 from pathlib import Path
 import re
+from fastprogress import progress_bar
+import pickle
 
 class Paper:
     def __init__(self, text, tables, annotations):
@@ -19,7 +21,7 @@ def clear_arxiv_version(arxiv_id):
     return arxiv_version_re.sub("", arxiv_id)
 
 
-class PaperCollection(dict):
+class PaperCollection:
     def __init__(self, path, load_texts=True, load_tables=True):
         self.path = path
         self.load_texts = load_texts
@@ -38,31 +40,32 @@ class PaperCollection(dict):
             annotations = {}
         outer_join = set(texts).union(set(tables))
 
-        self._papers = {k: Paper(texts.get(k), tables.get(k), annotations.get(k)) for k in outer_join}
-
-    def __len__(self):
-        return len(self._papers)
-
-    def __getitem__(self, idx):
-        return self._papers[idx]
-
-    def __iter__(self):
-        return iter(self._papers)
+        self.papers = {k: Paper(texts.get(k), tables.get(k, []), annotations.get(k)) for k in outer_join}
+        self._annotations = annotations
 
     def _load_texts(self):
         files = list((self.path / "texts").glob("**/*.json"))
-        texts = [PaperText.from_file(f) for f in files]
+        texts = [PaperText.from_file(f) for f in progress_bar(files)]
         return {clear_arxiv_version(text.meta.id): text for text in texts}
 
 
     def _load_tables(self, annotations):
         files = list((self.path / "tables").glob("**/metadata.json"))
-        return {clear_arxiv_version(f.parent.name): read_tables(f.parent, annotations) for f in files}
+        return {clear_arxiv_version(f.parent.name): read_tables(f.parent, annotations) for f in progress_bar(files)}
 
     def _load_annotated_papers(self):
-        dump = load_gql_dump(self.path / "structure-annotations.json.gz", compressed=True)["allPapers"]
+        dump = load_gql_dump(self.path / "structure-annotations.json", compressed=False)["allPapers"]
         annotations = {}
         for a in dump:
             arxiv_id = clear_arxiv_version(a.arxiv_id)
             annotations[arxiv_id] = a
         return annotations
+
+    def to_pickle(self, path):
+        with open(path, "wb") as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def from_pickle(cls, path):
+        with open(path, "rb") as f:
+            return pickle.load(f)

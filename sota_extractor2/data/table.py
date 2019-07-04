@@ -32,10 +32,13 @@ class Table:
         if annotations is not None:
             self.gold_tags = annotations.gold_tags.strip()
             tags = annotations.matrix_gold_tags
-            if self.df.shape != (0,0):
-                for r, row in enumerate(tags):
-                    for c, cell in enumerate(row):
-                        self.df.iloc[r,c].gold_tags = cell.strip()
+            gt_rows = len(annotations.matrix_gold_tags)
+            if gt_rows > 0:
+                gt_cols = len(annotations.matrix_gold_tags[0])
+                if self.df.shape != (0,0) and self.df.shape == (gt_rows, gt_cols):
+                    for r, row in enumerate(tags):
+                        for c, cell in enumerate(row):
+                            self.df.iloc[r,c].gold_tags = cell.strip()
         else:
             self.gold_tags = ''
 

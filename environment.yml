@@ -17,3 +17,4 @@ dependencies:
 - ipython=7.5.0
 - tqdm=4.28.1
 - joblib=0.13.2
+- fastprogress=0.1.20
