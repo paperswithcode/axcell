@@ -3,8 +3,6 @@ from .table import Table, read_tables
 from .json import load_gql_dump
 from pathlib import Path
 import re
-from tqdm import tqdm
-from joblib import Parallel, delayed
 
 class Paper:
     def __init__(self, text, tables, annotations):
@@ -53,14 +51,13 @@ class PaperCollection(dict):
 
     def _load_texts(self):
         files = list((self.path / "texts").glob("**/*.json"))
-        texts = Parallel(n_jobs=-1, prefer="processes")(delayed(PaperText.from_file)(f) for f in files)
+        texts = [PaperText.from_file(f) for f in files]
         return {clear_arxiv_version(text.meta.id): text for text in texts}
 
 
     def _load_tables(self, annotations):
         files = list((self.path / "tables").glob("**/metadata.json"))
-        tables = Parallel(n_jobs=-1, prefer="processes")(delayed(read_tables)(f.parent, annotations) for f in files)
-        return {clear_arxiv_version(f.parent.name): tbls for f, tbls in zip(files, tables)}
+        return {clear_arxiv_version(f.parent.name): read_tables(f.parent, annotations) for f in files}
 
     def _load_annotated_papers(self):
         dump = load_gql_dump(self.path / "structure-annotations.json.gz", compressed=True)["allPapers"]
