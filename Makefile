@@ -5,15 +5,15 @@ ARCHIVES_DIR = $(ARXIV_DIR)/sources
 UNPACKED_DIR = $(ARXIV_DIR)/unpacked_sources
 HTMLS_DIR = $(ARXIV_DIR)/htmls
 FIXED_HTMLS_DIR = $(ARXIV_DIR)/htmls-clean
-TABLES_DIR = $(ARXIV_DIR)/tables
-TEXTS_DIR = $(ARXIV_DIR)/texts
+TABLES_DIR = $(ARXIV_DIR)/papers
+TEXTS_DIR = $(ARXIV_DIR)/papers
 
 ARCHIVES    := $(shell find $(ARCHIVES_DIR) -name '*.gz' -type f 2>/dev/null)
 UNPACKS     := $(patsubst $(ARCHIVES_DIR)/%.gz,$(UNPACKED_DIR)/%,$(ARCHIVES))
 HTMLS       := $(patsubst $(ARCHIVES_DIR)/%.gz,$(HTMLS_DIR)/%.html,$(ARCHIVES))
 FIXED_HTMLS := $(patsubst $(ARCHIVES_DIR)/%.gz,$(FIXED_HTMLS_DIR)/%.html,$(ARCHIVES))
 TABLES      := $(patsubst $(ARCHIVES_DIR)/%.gz,$(TABLES_DIR)/%,$(ARCHIVES))
-TEXTS       := $(patsubst $(ARCHIVES_DIR)/%.gz,$(TEXTS_DIR)/%.json,$(ARCHIVES))
+TEXTS       := $(patsubst $(ARCHIVES_DIR)/%.gz,$(TEXTS_DIR)/%/text.json,$(ARCHIVES))
 
 .PHONY: all
 all:	$(ANNOTATIONS_DIR)/pdfs-urls.csv $(ANNOTATIONS_DIR)/sources-urls.csv extract_all
@@ -34,7 +34,7 @@ extract_all: extract_tables extract_texts
 
 extract_texts: $(TEXTS)
 
-$(TEXTS): $(TEXTS_DIR)/%.json: $(FIXED_HTMLS_DIR)/%.html
+$(TEXTS): $(TEXTS_DIR)/%/text.json: $(FIXED_HTMLS_DIR)/%.html
 	python ./extract_texts.py $^ $@
 
 

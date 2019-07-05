@@ -163,7 +163,7 @@ class Paper(Document):
     @classmethod
     def from_file(cls, path):
         path = Path(path)
-        paper_id = path.stem
+        paper_id = path.parent.name
         with open(path, "rt") as f:
             json = f.read()
         return cls.from_json(json, paper_id)

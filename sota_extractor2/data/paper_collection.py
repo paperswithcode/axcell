@@ -6,6 +6,7 @@ import re
 import pickle
 from joblib import Parallel, delayed
 from collections import UserList
+from ..helpers.jupyter import display_table
 
 class Paper:
     def __init__(self, paper_id, text, tables, annotations):
@@ -29,18 +30,18 @@ def remove_arxiv_version(arxiv_id):
 
 
 def _load_texts(path, jobs):
-    files = list((path / "texts").glob("**/*.json"))
+    files = list(path.glob("**/text.json"))
     texts = Parallel(n_jobs=jobs, prefer="processes")(delayed(PaperText.from_file)(f) for f in files)
     return {remove_arxiv_version(text.meta.id): text for text in texts}
 
 
 def _load_tables(path, annotations, jobs):
-    files = list((path / "tables").glob("**/metadata.json"))
+    files = list(path.glob("**/metadata.json"))
     tables = Parallel(n_jobs=jobs, prefer="processes")(delayed(read_tables)(f.parent, annotations.get(f.parent.name)) for f in files)
     return {remove_arxiv_version(f.parent.name): tbls for f, tbls in zip(files, tables)}
 
 def _load_annotated_papers(path):
-    dump = load_gql_dump(path / "structure-annotations.json", compressed=False)["allPapers"]
+    dump = load_gql_dump(path, compressed=False)["allPapers"]
     annotations = {}
     for a in dump:
         arxiv_id = remove_arxiv_version(a.arxiv_id)
@@ -53,13 +54,16 @@ class PaperCollection(UserList):
         super().__init__(data)
 
     @classmethod
-    def from_files(cls, path, load_texts=True, load_tables=True, jobs=-1):
+    def from_files(cls, path, annotations_path=None, load_texts=True, load_tables=True, jobs=-1):
+        path = Path(path)
+        if annotations_path is None:
+            annotations_path = path / "structure-annotations.json"
         if load_texts:
             texts = _load_texts(path, jobs)
         else:
             texts = {}
 
-        annotations = _load_annotated_papers(path)
+        annotations = _load_annotated_papers(annotations_path)
         if load_tables:
             tables = _load_tables(path, annotations, jobs)
         else:
@@ -76,6 +80,25 @@ class PaperCollection(UserList):
             if p.paper_id == paper_id:
                 return p
         return None
+
+    @classmethod
+    def cells_gold_tags_legend(cls):
+        tags = [
+            ("Tag", "description"),
+            ("model-best", "model that has results that author most likely would like to have exposed"),
+            ("model-paper", "an example of a generic model, (like LSTM)"),
+            ("model-competing", "model from another paper used for comparison"),
+            ("dataset-task", "Task"),
+            ("dataset", "Dataset"),
+            ("dataset-sub", "Subdataset"),
+            ("dataset-metric", "Metric"),
+            ("model-params", "Params, f.e., number of layers or inference time"),
+            ("table-meta", "Cell describing other header cells"),
+            ("trash", "Parsing erros")
+        ]
+        anns = [(t[0], "") for t in tags]
+        anns[0] = ("", "")
+        display_table(tags, anns)
 
 
     def to_pickle(self, path):
