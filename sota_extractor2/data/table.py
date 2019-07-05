@@ -62,4 +62,4 @@ def read_tables(path, annotations):
     path = Path(path)
     with open(path / "metadata.json", "r") as f:
         metadata = json.load(f)
-    return [Table.from_file(path / m["filename"], m, annotations.get(path.name)) for m in metadata]
+    return [Table.from_file(path / m["filename"], m, annotations) for m in metadata]
