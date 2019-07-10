@@ -39,17 +39,18 @@ def get_number_of_classes(y):
         return y.shape[1]
 
 class NBSVM:
-    def __init__(self, solver='liblinear', dual=True, C=4, ngram_range=(1, 2)):
-        self.solver = solver  # 'lbfgs' - large, liblinear for small datasets
-        self.dual = dual
-        self.C = C
-        self.ngram_range = ngram_range
+    def __init__(self, experiment):
+        self.experiment = experiment
 
     re_tok = re.compile(f'([{string.punctuation}“”¨«»®´·º½¾¿¡§£₤‘’])')
+    re_tok_fixed = re.compile(f'([{string.punctuation}“”¨«»®´·º½¾¿¡§£₤‘’])'.replace('<', '').replace('>', '').replace('/', ''))
     
-    def tokenize(self, s): 
+    def tokenize(self, s):
         return self.re_tok.sub(r' \1 ', s).split()
         
+    def tokenize_fixed(self, s):
+        return self.re_tok_fixed.sub(r' \1 ', s).split()
+
     def pr(self, y_i, y):
         p = self.trn_term_doc[y == y_i].sum(0)
         return (p+1) / ((y == y_i).sum()+1)
@@ -57,23 +58,46 @@ class NBSVM:
     def get_mdl(self, y):
         y = y.values
         r = np.log(self.pr(1, y) / self.pr(0, y))
-        m = LogisticRegression(C=self.C, dual=self.dual, solver=self.solver, max_iter=1000)
+        m = LogisticRegression(C=self.experiment.C, penalty=self.experiment.penalty,
+                               dual=self.experiment.dual, solver=self.experiment.solver,
+                               max_iter=self.experiment.max_iter)
         x_nb = self.trn_term_doc.multiply(r)
         return m.fit(x_nb, y), r
 
     def bow(self, X_train):
         self.n = X_train.shape[0]
-        self.vec = TfidfVectorizer(ngram_range=self.ngram_range, tokenizer=self.tokenize,
-                                min_df=3, max_df=0.9, strip_accents='unicode', use_idf=1,
-                                smooth_idf=1, sublinear_tf=1)
+
+        if self.experiment.vectorizer == "tfidf":
+            self.vec = TfidfVectorizer(ngram_range=self.experiment.ngram_range,
+                                       tokenizer=self.tokenize_fixed if self.experiment.fixed_tokenizer else self.tokenize,
+                                       min_df=self.experiment.min_df, max_df=self.experiment.max_df,
+                                       strip_accents='unicode', use_idf=1,
+                                       smooth_idf=1, sublinear_tf=1)
+        elif self.experiment.vectorizer == "count":
+            self.vec = CountVectorizer(ngram_range=self.experiment.ngram_range, tokenizer=self.tokenize,
+                                       min_df=self.experiment.min_df, max_df=self.experiment.max_df,
+                                       strip_accents='unicode')
+        else:
+            raise Exception(f"Unknown vectorizer type: {self.experiment.vectorizer}")
+
         return self.vec.fit_transform(X_train)
 
     def train_models(self, y_train):
         self.models = []
-        for i in range(0, self.c):
-            print('fit', i)
-            m, r = self.get_mdl(get_class_column(y_train, i))
-            self.models.append((m, r))
+        if self.experiment.multinomial_type == "manual":
+            for i in range(0, self.c):
+                #print('fit', i)
+                m, r = self.get_mdl(get_class_column(y_train, i))
+                self.models.append((m, r))
+        elif self.experiment.multinomial_type == "multinomial":
+            m = LogisticRegression(C=self.experiment.C, penalty=self.experiment.penalty,
+                                   dual=self.experiment.dual, solver=self.experiment.solver,
+                                   max_iter=self.experiment.max_iter,
+                                   multi_class="multinomial", class_weight=self.experiment.class_weight)
+            x_nb = self.trn_term_doc
+            self.models.append(m.fit(x_nb, y_train))
+        else:
+            raise Exception(f"Unsupported multinomial_type {self.experiment.multinomial_type}")
 
     def fit(self, X_train, y_train):
         self.trn_term_doc = self.bow(X_train)
@@ -81,13 +105,49 @@ class NBSVM:
         self.train_models(y_train)
 
     def predict_proba(self, X_test):
-        preds = np.zeros((len(X_test), self.c))
         test_term_doc = self.vec.transform(X_test)
-        for i in range(0, self.c):
-            m, r = self.models[i]
-            preds[:, i] = m.predict_proba(test_term_doc.multiply(r))[:, 1]
+        if self.experiment.multinomial_type == "manual":
+            preds = np.zeros((len(X_test), self.c))
+            for i in range(0, self.c):
+                m, r = self.models[i]
+                preds[:, i] = m.predict_proba(test_term_doc.multiply(r))[:, 1]
+        elif self.experiment.multinomial_type == "multinomial":
+            preds = self.models[0].predict_proba(test_term_doc)
+        else:
+            raise Exception(f"Unsupported multinomial_type {self.experiment.multinomial_type}")
         return preds
-    
+
+    def sort_features_by_importance(self, label):
+        label = label.value
+        names = np.array(self.vec.get_feature_names())
+        if self.experiment.multinomial_type == "manual":
+            m, r = self.models[label]
+            f = m.coef_[0] * np.array(r[0])
+        elif self.experiment.multinomial_type == "multinomial":
+            f = self.models[0].coef_[label]
+        else:
+            raise Exception(f"Unsupported multinomial_type {self.experiment.multinomial_type}")
+        if self.experiment.vectorizer == "tfidf":
+            f *= self.vec.idf_
+        indices = f.argsort()[::-1]
+        return names[indices], f[indices]
+
+    def get_mismatched(self, df, true_label, predicted_label):
+        true_label = true_label.value
+        predicted_label = predicted_label.value
+
+        probs = self.predict_proba(df["text"])
+        preds = np.argmax(probs, axis=1)
+        true_y = df["label"]
+
+        mismatched_indices = (true_y == true_label) & (preds == predicted_label)
+        mismatched = df[mismatched_indices]
+        diff = probs[mismatched_indices, true_label] - probs[mismatched_indices, predicted_label]
+        indices = diff.argsort()
+        mismatched = mismatched.iloc[indices]
+        mismatched["pr_diff"] = diff[indices]
+        return mismatched
+
     def validate(self, X_test, y_test):
         acc = (np.argmax(self.predict_proba(X_test),  axis=1) == y_test).mean()
         return acc
@@ -98,10 +158,14 @@ def metrics(preds, true_y):
     acc = (p == y).mean()
     tp = ((y != 0) & (p == y)).sum()
     fp = ((p != 0) & (p != y)).sum()
+    fn = ((y != 0) & (p == 0)).sum()
+
     prec = tp / (fp + tp)
+    reca = tp / (fn + tp)
     return {
         "precision": prec,
         "accuracy": acc,
+        "recall": reca,
         "TP": tp,
         "FP": fp,
     }
@@ -119,6 +183,18 @@ def preds_for_cell_content(test_df, probs, group_by=["cell_content"]):
     return results
 
 def preds_for_cell_content_multi(test_df, probs, group_by=["cell_content"]):
+    test_df = test_df.copy()
+    probs_df = pd.DataFrame(probs, index=test_df.index)
+    test_df = pd.concat([test_df, probs_df], axis=1)
+    grouped_preds = np.argmax(test_df.groupby(
+        group_by)[probs_df.columns].sum().values, axis=1)
+    grouped_counts = test_df.groupby(group_by)["label"].count()
+    results = pd.DataFrame({'true': test_df.groupby(group_by)["label"].agg(lambda x: x.value_counts().index[0]),
+                            'pred': grouped_preds,
+                            'counts': grouped_counts})
+    return results
+
+def preds_for_cell_content_best(test_df, probs, group_by=["cell_content"]):
     test_df = test_df.copy()
     probs_df = pd.DataFrame(probs, index=test_df.index)
     test_df = pd.concat([test_df, probs_df], axis=1)
