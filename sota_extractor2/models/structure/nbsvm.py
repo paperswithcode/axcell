@@ -38,18 +38,21 @@ def get_number_of_classes(y):
     else:
         return y.shape[1]
 
+re_tok = re.compile(f'([{string.punctuation}“”¨«»®´·º½¾¿¡§£₤‘’])')
+re_tok_fixed = re.compile(
+    f'([{string.punctuation}“”¨«»®´·º½¾¿¡§£₤‘’])'.replace('<', '').replace('>', '').replace('/', ''))
+
+def tokenize(s):
+    return re_tok.sub(r' \1 ', s).split()
+
+def tokenize_fixed(s):
+    return re_tok_fixed.sub(r' \1 ', s).split()
+
+
 class NBSVM:
     def __init__(self, experiment):
         self.experiment = experiment
 
-    re_tok = re.compile(f'([{string.punctuation}“”¨«»®´·º½¾¿¡§£₤‘’])')
-    re_tok_fixed = re.compile(f'([{string.punctuation}“”¨«»®´·º½¾¿¡§£₤‘’])'.replace('<', '').replace('>', '').replace('/', ''))
-    
-    def tokenize(self, s):
-        return self.re_tok.sub(r' \1 ', s).split()
-        
-    def tokenize_fixed(self, s):
-        return self.re_tok_fixed.sub(r' \1 ', s).split()
 
     def pr(self, y_i, y):
         p = self.trn_term_doc[y == y_i].sum(0)
@@ -67,14 +70,15 @@ class NBSVM:
     def bow(self, X_train):
         self.n = X_train.shape[0]
 
+        tokenizer = tokenize_fixed if self.experiment.fixed_tokenizer else tokenize
         if self.experiment.vectorizer == "tfidf":
             self.vec = TfidfVectorizer(ngram_range=self.experiment.ngram_range,
-                                       tokenizer=self.tokenize_fixed if self.experiment.fixed_tokenizer else self.tokenize,
+                                       tokenizer=tokenizer,
                                        min_df=self.experiment.min_df, max_df=self.experiment.max_df,
                                        strip_accents='unicode', use_idf=1,
                                        smooth_idf=1, sublinear_tf=1)
         elif self.experiment.vectorizer == "count":
-            self.vec = CountVectorizer(ngram_range=self.experiment.ngram_range, tokenizer=self.tokenize,
+            self.vec = CountVectorizer(ngram_range=self.experiment.ngram_range, tokenizer=tokenizer,
                                        min_df=self.experiment.min_df, max_df=self.experiment.max_df,
                                        strip_accents='unicode')
         else:
@@ -122,7 +126,7 @@ class NBSVM:
         names = np.array(self.vec.get_feature_names())
         if self.experiment.multinomial_type == "manual":
             m, r = self.models[label]
-            f = m.coef_[0] * np.array(r[0])
+            f = m.coef_[0] * np.array(r)[0]
         elif self.experiment.multinomial_type == "multinomial":
             f = self.models[0].coef_[label]
         else:
@@ -133,6 +137,8 @@ class NBSVM:
         return names[indices], f[indices]
 
     def get_mismatched(self, df, true_label, predicted_label):
+        if self.experiment.merge_fragments and self.experiment.merge_type != "concat":
+            print("warning: the returned results are before merging")
         true_label = true_label.value
         predicted_label = predicted_label.value
 
@@ -194,12 +200,12 @@ def preds_for_cell_content_multi(test_df, probs, group_by=["cell_content"]):
                             'counts': grouped_counts})
     return results
 
-def preds_for_cell_content_best(test_df, probs, group_by=["cell_content"]):
+def preds_for_cell_content_max(test_df, probs, group_by=["cell_content"]):
     test_df = test_df.copy()
     probs_df = pd.DataFrame(probs, index=test_df.index)
     test_df = pd.concat([test_df, probs_df], axis=1)
     grouped_preds = np.argmax(test_df.groupby(
-        group_by)[probs_df.columns].sum().values, axis=1)
+        group_by)[probs_df.columns].max().values, axis=1)
     grouped_counts = test_df.groupby(group_by)["label"].count()
     results = pd.DataFrame({'true': test_df.groupby(group_by)["label"].agg(lambda x: x.value_counts().index[0]),
                             'pred': grouped_preds,

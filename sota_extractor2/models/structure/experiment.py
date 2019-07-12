@@ -25,14 +25,22 @@ label_map = {
     "model-competing": Labels.COMPETING_MODEL.value
 }
 
+# put here to avoid recompiling, used only in _limit_context
+elastic_tag_split_re = re.compile("(<b>.*?</b>)")
+
 @dataclass
 class Experiment:
     vectorizer: str = "tfidf"
     this_paper: bool = False
     merge_fragments: bool = False
+    merge_type: str = "concat"  # "concat", "vote_maj", "vote_avg", "vote_max"
     evidence_source: str = "text"  # "text" or "text_highlited"
     split_btags: bool = False  # <b>Test</b> -> <b> Test </b>
-    fixed_tokenizer: bool = False  # <b> and </b> are not split
+    fixed_tokenizer: bool = False  # if True, <b> and </b> are not split into < b > and < / b >
+    fixed_this_paper: bool = False # if True and this_paper, filter this_paper before merging fragments
+    mask: bool = False             # if True and evidence_source = "text_highlited", replace <b>...</b> with xxmask
+    evidence_limit: int = None     # maximum number of evidences per cell (grouped by (ext_id, this_paper))
+    context_tokens: int = None      # max. number of words before <b> and after </b>
 
     class_weight: str = None
     multinomial_type: str = "manual"  # "manual", "ovr", "multinomial"
@@ -107,17 +115,61 @@ class Experiment:
         self.has_model = True
         return nbsvm
 
+    def _limit_context(self, text):
+        parts = elastic_tag_split_re.split(text)
+        new_parts = []
+        end = len(parts)
+        for i, part in enumerate(parts):
+            if i % 2 == 0:
+                toks = tokenize(part)
+                if i == 0:
+                    toks = toks[-self.context_tokens:]
+                elif i == end:
+                    toks = toks[:self.context_tokens]
+                else:
+                    j = len(toks) - 2 * self.context_tokens
+                    if j > 0:
+                        toks = toks[:self.context_tokens] + toks[-self.context_tokens:]
+                new_parts.append(' '.join(toks))
+            else:
+                new_parts.append(part)
+        return ' '.join(new_parts)
+
+
+
     def _transform_df(self, df):
+        if self.merge_type not in ["concat", "vote_maj", "vote_avg", "vote_max"]:
+            raise Exception(f"merge_type must be one of concat, vote_maj, vote_avg, vote_max, but {self.merge_type} was given")
         df = df[df["cell_type"] != "table-meta"]  # otherwise we get precision 0 on test set
+        if self.evidence_limit is not None:
+            df = df.groupby(by=["ext_id", "this_paper"]).head(self.evidence_limit)
+        if self.context_tokens is not None:
+            df.loc["text_highlited"] = df["text_highlited"].apply(self._limit_context)
+            df.loc["text"] = df["text_highlited"].str.replace("<b>", " ").replace("</b>", " ")
         if self.evidence_source != "text":
             df = df.copy(True)
-            df["text"] = df[self.evidence_source]
-        if self.merge_fragments:
-            df = df.groupby(by=["ext_id", "cell_content", "cell_type", "this_paper"]).text.apply(
-                lambda x: "\n".join(x.values)).reset_index()
-        df = df.drop_duplicates(["text", "cell_content", "cell_type"]).fillna("")
-        if self.this_paper:
-            df = df[df.this_paper]
+            if self.mask:
+                df["text"] = df[self.evidence_source].replace(re.compile("<b>.*?</b>"), " xxmask ")
+            else:
+                df["text"] = df[self.evidence_source]
+
+        elif self.mask:
+            raise Exception("Masking with evidence_source='text' makes no sense")
+        if not self.fixed_this_paper:
+            if self.merge_fragments and self.merge_type == "concat":
+                df = df.groupby(by=["ext_id", "cell_content", "cell_type", "this_paper"]).text.apply(
+                    lambda x: "\n".join(x.values)).reset_index()
+            df = df.drop_duplicates(["text", "cell_content", "cell_type"]).fillna("")
+            if self.this_paper:
+                df = df[df.this_paper]
+        else:
+            if self.this_paper:
+                df = df[df.this_paper]
+            if self.merge_fragments and self.merge_type == "concat":
+                df = df.groupby(by=["ext_id", "cell_content", "cell_type"]).text.apply(
+                    lambda x: "\n".join(x.values)).reset_index()
+            df = df.drop_duplicates(["text", "cell_content", "cell_type"]).fillna("")
+
         if self.split_btags:
             df["text"] = df["text"].replace(re.compile(r"(\</?b\>)"), r" \1 ")
         df = df.replace(re.compile(r"(xxref|xxanchor)-[\w\d-]*"), "\\1 ")
@@ -135,9 +187,20 @@ class Experiment:
         for prefix, tdf in zip(["train", "valid", "test"], [train_df, valid_df, test_df]):
             probs = model.predict_proba(tdf["text"])
             preds = np.argmax(probs, axis=1)
-            true_y = tdf["label"]
 
-            m = metrics(preds, tdf.label)
+            if self.merge_fragments and self.merge_type != "concat":
+                if self.merge_type == "vote_maj":
+                    vote_results = preds_for_cell_content(tdf, probs)
+                elif self.merge_type == "vote_avg":
+                    vote_results = preds_for_cell_content_multi(tdf, probs)
+                elif self.merge_type == "vote_max":
+                    vote_results = preds_for_cell_content_max(tdf, probs)
+                preds = vote_results["pred"]
+                true_y = vote_results["true"]
+            else:
+                true_y = tdf["label"]
+
+            m = metrics(preds, true_y)
             r = {}
             r[f"{prefix}_accuracy"] = m["accuracy"]
             r[f"{prefix}_precision"] = m["precision"]
