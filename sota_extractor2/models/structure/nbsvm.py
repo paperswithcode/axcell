@@ -63,7 +63,7 @@ class NBSVM:
         r = np.log(self.pr(1, y) / self.pr(0, y))
         m = LogisticRegression(C=self.experiment.C, penalty=self.experiment.penalty,
                                dual=self.experiment.dual, solver=self.experiment.solver,
-                               max_iter=self.experiment.max_iter)
+                               max_iter=self.experiment.max_iter, class_weight=self.experiment.class_weight)
         x_nb = self.trn_term_doc.multiply(r)
         return m.fit(x_nb, y), r
 
@@ -74,11 +74,15 @@ class NBSVM:
         if self.experiment.vectorizer == "tfidf":
             self.vec = TfidfVectorizer(ngram_range=self.experiment.ngram_range,
                                        tokenizer=tokenizer,
+                                       lowercase=self.experiment.lowercase,
+                                       analyzer=self.experiment.analyzer,
                                        min_df=self.experiment.min_df, max_df=self.experiment.max_df,
                                        strip_accents='unicode', use_idf=1,
                                        smooth_idf=1, sublinear_tf=1)
         elif self.experiment.vectorizer == "count":
             self.vec = CountVectorizer(ngram_range=self.experiment.ngram_range, tokenizer=tokenizer,
+                                       analyzer=self.experiment.analyzer,
+                                       lowercase=self.experiment.lowercase,
                                        min_df=self.experiment.min_df, max_df=self.experiment.max_df,
                                        strip_accents='unicode')
         else:
@@ -93,11 +97,11 @@ class NBSVM:
                 #print('fit', i)
                 m, r = self.get_mdl(get_class_column(y_train, i))
                 self.models.append((m, r))
-        elif self.experiment.multinomial_type == "multinomial":
+        elif self.experiment.multinomial_type == "multinomial" or self.experiment.multinomial_type == "ovr":
             m = LogisticRegression(C=self.experiment.C, penalty=self.experiment.penalty,
                                    dual=self.experiment.dual, solver=self.experiment.solver,
                                    max_iter=self.experiment.max_iter,
-                                   multi_class="multinomial", class_weight=self.experiment.class_weight)
+                                   multi_class=self.experiment.multinomial_type, class_weight=self.experiment.class_weight)
             x_nb = self.trn_term_doc
             self.models.append(m.fit(x_nb, y_train))
         else:
@@ -115,7 +119,7 @@ class NBSVM:
             for i in range(0, self.c):
                 m, r = self.models[i]
                 preds[:, i] = m.predict_proba(test_term_doc.multiply(r))[:, 1]
-        elif self.experiment.multinomial_type == "multinomial":
+        elif self.experiment.multinomial_type == "multinomial" or self.experiment.multinomial_type == "ovr":
             preds = self.models[0].predict_proba(test_term_doc)
         else:
             raise Exception(f"Unsupported multinomial_type {self.experiment.multinomial_type}")

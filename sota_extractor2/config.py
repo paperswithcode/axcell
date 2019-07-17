@@ -10,7 +10,7 @@ graphql_url = 'http://10.0.1.145:8001/graphql/'
 
 # otherwise use this files
 data = Path("/mnt/efs/pwc/data")
-goldtags_dump = data / "dumps" / "goldtags-2019.06.28_0916.json.gz"
+goldtags_dump = data / "dumps" / "goldtags-2019.07.16_2214.json.gz"
 
 
 elastic = dict(hosts=['localhost'], timeout=20)

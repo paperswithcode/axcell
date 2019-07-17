@@ -41,6 +41,8 @@ class Experiment:
     mask: bool = False             # if True and evidence_source = "text_highlited", replace <b>...</b> with xxmask
     evidence_limit: int = None     # maximum number of evidences per cell (grouped by (ext_id, this_paper))
     context_tokens: int = None      # max. number of words before <b> and after </b>
+    analyzer: str = "word"            # "char", "word" or "char_wb"
+    lowercase: bool = True
 
     class_weight: str = None
     multinomial_type: str = "manual"  # "manual", "ovr", "multinomial"
@@ -140,7 +142,7 @@ class Experiment:
     def _transform_df(self, df):
         if self.merge_type not in ["concat", "vote_maj", "vote_avg", "vote_max"]:
             raise Exception(f"merge_type must be one of concat, vote_maj, vote_avg, vote_max, but {self.merge_type} was given")
-        df = df[df["cell_type"] != "table-meta"]  # otherwise we get precision 0 on test set
+        #df = df[df["cell_type"] != "table-meta"]  # otherwise we get precision 0 on test set
         if self.evidence_limit is not None:
             df = df.groupby(by=["ext_id", "this_paper"]).head(self.evidence_limit)
         if self.context_tokens is not None:
@@ -181,7 +183,18 @@ class Experiment:
         return df
 
     def transform_df(self, *dfs):
-        return [self._transform_df(df) for df in dfs]
+        transformed = [self._transform_df(df) for df in dfs]
+        if len(transformed) == 1:
+            return transformed[0]
+        return transformed
+
+    def _set_results(self, prefix, preds, true_y):
+        m = metrics(preds, true_y)
+        r = {}
+        r[f"{prefix}_accuracy"] = m["accuracy"]
+        r[f"{prefix}_precision"] = m["precision"]
+        r[f"{prefix}_cm"] = confusion_matrix(true_y, preds).tolist()
+        self.update_results(**r)
 
     def evaluate(self, model, train_df, valid_df, test_df):
         for prefix, tdf in zip(["train", "valid", "test"], [train_df, valid_df, test_df]):
@@ -199,13 +212,7 @@ class Experiment:
                 true_y = vote_results["true"]
             else:
                 true_y = tdf["label"]
-
-            m = metrics(preds, true_y)
-            r = {}
-            r[f"{prefix}_accuracy"] = m["accuracy"]
-            r[f"{prefix}_precision"] = m["precision"]
-            r[f"{prefix}_cm"] = confusion_matrix(true_y, preds).tolist()
-            self.update_results(**r)
+            self._set_results(prefix, preds, true_y)
 
     def show_results(self, *ds):
         if not len(ds):
