@@ -32,6 +32,12 @@ def clear_cell(s):
     return s
 
 
+def empty_fragment(paper_id):
+    fragment = Fragment(paper_id=paper_id)
+    fragment.meta['highlight'] = {'text': ['']}
+    return fragment
+
+
 def fetch_evidence(cell_content, cell_reference, paper_id, paper_limit=10, corpus_limit=10):
     cell_content = clear_cell(cell_content)
     if cell_content == "" and cell_reference == "":
@@ -61,6 +67,8 @@ def fetch_evidence(cell_content, cell_reference, paper_id, paper_limit=10, corpu
                            .query('match_phrase', text=query)[:corpus_limit])
     if not len(paper_fragments) and not len(reference_fragments) and not len(other_fagements):
         print(f"No evidences for '{cell_content}' of {paper_id}")
+    if not len(paper_fragments) and not len(reference_fragments):
+        paper_fragments = [empty_fragment(paper_id)]
     return paper_fragments + reference_fragments + other_fagements
 
 fix_refs_re = re.compile('\(\?\)|\s[?]+(\s|$)')
@@ -124,12 +132,13 @@ def evidence_for_table(table, paper_limit=10, corpus_limit=1, limit_type='intere
 
 
 def prepare_data(tables, csv_path, limit_type='interesting'):
-    df = pd.concat([evidence_for_table(table,  
+    df = pd.concat([evidence_for_table(table,
                                        paper_limit=100,
                                        corpus_limit=20,
                                        limit_type=limit_type) for table in progress_bar(tables)])
-    df = df.drop_duplicates(
-        ["cell_content", "text_highlited", "cell_type", "this_paper"])
+    #moved to experiment preprocessing
+    #df = df.drop_duplicates(
+    #    ["cell_content", "text_highlited", "cell_type", "this_paper"])
     print("Number of text fragments ", len(df))
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(csv_path, index=None)
