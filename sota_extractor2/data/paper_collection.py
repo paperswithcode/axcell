@@ -37,7 +37,7 @@ def _load_texts(path, jobs):
 
 def _load_tables(path, annotations, jobs):
     files = list(path.glob("**/metadata.json"))
-    tables = Parallel(n_jobs=jobs, prefer="processes")(delayed(read_tables)(f.parent, annotations.get(f.parent.name)) for f in files)
+    tables = Parallel(n_jobs=jobs, prefer="processes")(delayed(read_tables)(f.parent, annotations.get(remove_arxiv_version(f.parent.name))) for f in files)
     return {remove_arxiv_version(f.parent.name): tbls for f, tbls in zip(files, tables)}
 
 def _load_annotated_papers(path):
