@@ -6,23 +6,23 @@ SOURCE_DIR="/files/source"
 OUTPUT_DIR="/files/htmls"
 
 cp -r "$RO_SOURCE_DIR" "$SOURCE_DIR"
+
+# turn tikzpciture instances into comments
 find "$SOURCE_DIR" -iname '*.tex' -print0 | xargs -0 sed -i \
   -e 's/\\begin{document}/\\usepackage{verbatim}\0/g' \
   -e 's/\\begin\(\[[^]]*\]\)\?{tikzpicture}/\\begin{comment}/g' \
   -e 's/\\end{tikzpicture}/\\end{comment}/g'
 
-if [ -f "$SOURCE_DIR/ms.tex" ]
-then
-  MAINTEX="$SOURCE_DIR/ms.tex"
-elif [ -f "$SOURCE_DIR/main.tex" ]
-then
-  MAINTEX="$SOURCE_DIR/main.tex"
-elif [ -f "$SOURCE_DIR/00_main.tex" ]
-then
-  MAINTEX="$SOURCE_DIR/00_main.tex"
-else
-  MAINTEX=$(find "$SOURCE_DIR" -maxdepth 1 -type f -iname "*.tex" -print0 | xargs -0 grep -l documentclass | head -1)
-fi
+# temporary fixes
+# https://github.com/brucemiller/LaTeXML/pull/1171
+# https://github.com/brucemiller/LaTeXML/pull/1173
+# https://github.com/brucemiller/LaTeXML/pull/1177
+for patch in /files/patches/*
+do
+  patch -i $patch -p 3 -d /usr/local/share/perl/5.28.1/LaTeXML
+done
+
+MAINTEX=$(python3 /files/guess_main.py "$SOURCE_DIR")
 timeout -s KILL 300 engrafo "$MAINTEX" /files/output
 
 cp /files/output/index.html "$OUTPUT_DIR/$OUTNAME"

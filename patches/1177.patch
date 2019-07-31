@@ -1,0 +1,26 @@
+From 4b3a98e90e790eccb18eb16636c783ec7dfceb3b Mon Sep 17 00:00:00 2001
+From: Marcin Kardas <marcin.kardas@gmail.com>
+Date: Sun, 28 Jul 2019 16:51:49 +0200
+Subject: [PATCH] Use algorithmic instead of algorithmicx in icml*.sty
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+All icml style files I've tested (2013-2019) require `algorithmic` package, but `algorithmicx` doesn’t define any `algorithmic` commands. [Here's](https://arxiv.org/pdf/1402.5766v1.pdf) an example of paper (using icml2014.sty) on which LaTeXML hangs during processing when `algorithmicx` is used.
+---
+ lib/LaTeXML/Package/icml_support.sty.ltxml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/LaTeXML/Package/icml_support.sty.ltxml b/lib/LaTeXML/Package/icml_support.sty.ltxml
+index 176498a05..3696de4b7 100644
+--- a/lib/LaTeXML/Package/icml_support.sty.ltxml
++++ b/lib/LaTeXML/Package/icml_support.sty.ltxml
+@@ -20,7 +20,7 @@ RequirePackage('times');
+ RequirePackage('fancyhdr');
+ RequirePackage('color');
+ RequirePackage('algorithm');
+-RequirePackage('algorithmicx');
++RequirePackage('algorithmic');
+ RequirePackage('natbib');
+ # RequirePackage('eso-pic');
+ # RequirePackage('forloop');
