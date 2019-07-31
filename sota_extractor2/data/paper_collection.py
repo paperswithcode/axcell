@@ -11,6 +11,7 @@ from ..helpers.jupyter import display_table
 class Paper:
     def __init__(self, paper_id, text, tables, annotations):
         self.paper_id = paper_id
+        self.arxiv_no_version = remove_arxiv_version(paper_id)
         if text is not None:
             self.text = text
         else:
@@ -32,20 +33,18 @@ def remove_arxiv_version(arxiv_id):
 def _load_texts(path, jobs):
     files = list(path.glob("**/text.json"))
     texts = Parallel(n_jobs=jobs, prefer="processes")(delayed(PaperText.from_file)(f) for f in files)
-    return {remove_arxiv_version(text.meta.id): text for text in texts}
+    return {text.meta.id: text for text in texts}
 
 
 def _load_tables(path, annotations, jobs):
     files = list(path.glob("**/metadata.json"))
-    tables = Parallel(n_jobs=jobs, prefer="processes")(delayed(read_tables)(f.parent, annotations.get(remove_arxiv_version(f.parent.name))) for f in files)
-    return {remove_arxiv_version(f.parent.name): tbls for f, tbls in zip(files, tables)}
+    tables = Parallel(n_jobs=jobs, prefer="processes")(delayed(read_tables)(f.parent, annotations.get(f.parent.name)) for f in files)
+    return {f.parent.name: tbls for f, tbls in zip(files, tables)}
+
 
 def _load_annotated_papers(path):
-    dump = load_gql_dump(path, compressed=False)["allPapers"]
-    annotations = {}
-    for a in dump:
-        arxiv_id = remove_arxiv_version(a.arxiv_id)
-        annotations[arxiv_id] = a
+    dump = load_gql_dump(path, compressed=path.suffix == ".gz")["allPapers"]
+    annotations = {a.arxiv_id: a for a in dump}
     return annotations
 
 
@@ -74,12 +73,18 @@ class PaperCollection(UserList):
         papers = [Paper(k, texts.get(k), tables.get(k, []), annotations.get(k)) for k in outer_join]
         return cls(papers)
 
-    def get_by_id(self, paper_id):
-        paper_id = remove_arxiv_version(paper_id)
-        for p in self.data:
-            if p.paper_id == paper_id:
-                return p
-        return None
+    def get_by_id(self, paper_id, ignore_version=True):
+        if ignore_version:
+            paper_id = remove_arxiv_version(paper_id)
+            for p in self.data:
+                if p.arxiv_no_version == paper_id:
+                    return p
+            return None
+        else:
+            for p in self.data:
+                if p.paper_id == paper_id:
+                    return p
+            return None
 
     @classmethod
     def cells_gold_tags_legend(cls):

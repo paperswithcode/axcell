@@ -149,6 +149,9 @@ def fix_table(df):
     return decouple_layout(df)
 
 
+def is_table_empty(df):
+    return (df.applymap(lambda x: x.strip()).values == "").all()
+
 def fix_id(s):
     return s.replace(".", "-")
 
@@ -198,6 +201,11 @@ def move_out_styles(table):
         wrap_elem_content(elem, f"{b},{a},{header},{colspan},{rowspan};", "")
 
 
+def remove_ltx_errors(soup):
+    for span in soup.select('span.ltx_ERROR'):
+        span.extract()
+
+
 def html2data(table):
     data = pd.read_html(str(table), match='')
     if len(data) > 1:
@@ -230,6 +238,26 @@ def set_ids_by_labels(soup):
             label = fig.attrs["id"]
             for table in fig.select(".ltx_tabular"):
                 table["data-figure-id"] = label
+
+
+alg_id_re = re.compile(r"^alg(orithm)?[0-9]+")
+def perhaps_not_tabular(table, float_div):
+    classes = float_div.attrs.get("class")
+    if 'ltx_table' in classes:
+        return False
+    if 'ltx_figure' in classes:
+        if table.find("img", class_="ltx_graphics"):
+            return True
+    if 'ltx_float' in classes:
+        if 'biography' in classes:
+            return True
+        if 'ltx_float_algorithm':
+            return True
+        if 'ltx_lstlisting':
+            return True
+        if float_div.id and alg_id_re.match(float_div.id):
+            return True
+    return False
 
 def is_figure(tag):
     return tag.name == "figure"
@@ -270,6 +298,7 @@ def extract_tables(filename, outdir):
     set_ids_by_labels(soup)
     fix_span_tables(soup)
     fix_th(soup)
+    remove_ltx_errors(soup)
     flatten_tables(soup)
     tables = soup.find_all("table", class_="ltx_tabular")
 
@@ -279,6 +308,8 @@ def extract_tables(filename, outdir):
             continue
 
         float_div = table.find_parent(is_figure)
+        if float_div and perhaps_not_tabular(table, float_div):
+            continue
         remove_footnotes(table)
         move_out_references(table)
         move_out_styles(table)
@@ -288,6 +319,8 @@ def extract_tables(filename, outdir):
             continue
 
         tab, layout = fix_table(tab)
+        if is_table_empty(tab):
+            continue
 
         caption = None
         if float_div is not None:
