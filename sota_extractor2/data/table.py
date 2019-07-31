@@ -51,12 +51,14 @@ def read_str_csv(filename):
 
 
 class Table:
-    def __init__(self, df, layout, caption=None, figure_id=None, annotations=None, old_name=None, guessed_tags=None):
+    def __init__(self, df, layout, caption=None, figure_id=None, annotations=None, migrate=False, old_name=None, guessed_tags=None):
         self.df = df
         self.caption = caption
         self.figure_id = figure_id
         self.df = df.applymap(str2cell)
-        self.old_name = old_name
+
+        if migrate:
+            self.old_name = old_name
 
         if layout is not None:
             #self.layout = layout
@@ -74,8 +76,9 @@ class Table:
                 tags = annotations.matrix_gold_tags
             gt_rows = len(tags)
             if gt_rows == 0 and len(self.df) > 0:
-                #print(f"Gold tags size mismatch: 0 vs {len(self.df)} in old name {old_name}")
-                self.old_name = None
+                print(f"Gold tags size mismatch: 0 vs {len(self.df)} in old name {old_name}")
+                if migrate:
+                    self.old_name = None
             elif gt_rows > 0:
                 gt_cols = len(tags[0])
                 if self.df.shape != (0,0) and self.df.shape == (gt_rows, gt_cols):
@@ -83,19 +86,19 @@ class Table:
                         for c, cell in enumerate(row):
                             self.df.iloc[r,c].gold_tags = cell.strip()
                 else:
-                    if guessed_tags is not None:
-                        print(f"Gold tags size mismatch: {gt_rows},{gt_cols} vs {self.df.shape}")
+                    print(f"Gold tags size mismatch: {gt_rows},{gt_cols} vs {self.df.shape}")
                 #    print(f"Gold tags size mismatch: {gt_rows},{gt_cols} vs {self.df.shape}")
                 #    print(annotations.matrix_gold_tags)
                 #    print(self.df.applymap(lambda c:c.value))
-                    self.old_name = None
+                    if migrate:
+                        self.old_name = None
         else:
             self.gold_tags = ''
             self.dataset_text = ''
             self.notes = ''
 
     @classmethod
-    def from_file(cls, path, metadata, annotations=None, match_name=None, guessed_tags=None):
+    def from_file(cls, path, metadata, annotations=None, migrate=False, match_name=None, guessed_tags=None):
         path = Path(path)
         filename = path / metadata['filename']
         df = read_str_csv(filename)
@@ -103,12 +106,19 @@ class Table:
             layout = read_str_csv(path / metadata['layout'])
         else:
             layout = None
-        if annotations is not None and match_name is not None:
-            table_ann = annotations.table_set.filter(name=match_name) + [None]
-            table_ann = table_ann[0]
+        if annotations is not None:
+            if not migrate:
+                # TODO: remove parser after migration is fully finished
+                table_ann = annotations.table_set.filter(name=metadata['filename'], parser="latexml") + [None]
+                table_ann = table_ann[0]
+            elif match_name is not None:
+                table_ann = annotations.table_set.filter(name=match_name) + [None]
+                table_ann = table_ann[0]
+            else:
+                table_ann = None
         else:
             table_ann = None
-        return cls(df, layout, metadata.get('caption'), metadata.get('figure_id'), table_ann, match_name, guessed_tags)
+        return cls(df, layout, metadata.get('caption'), metadata.get('figure_id'), table_ann, migrate, match_name, guessed_tags)
 
     def display(self):
         display_table(self.df.applymap(lambda x: x.value).values, self.df.applymap(lambda x: x.gold_tags).values)
@@ -241,16 +251,21 @@ def _match_tables_by_content(path, annotations, metadata):
     return matched, new_tags
 ####
 
-def read_tables(path, annotations):
+def read_tables(path, annotations, migrate=False):
     path = Path(path)
     with open(path / "metadata.json", "r") as f:
         metadata = json.load(f)
-    _matched_names_by_captions = {} #_match_tables_by_captions(annotations, metadata)
-    _matched_names_by_content, _guessed_tags = _match_tables_by_content(path, annotations, metadata)
-    _matched_names = _matched_names_by_captions
-    for new_name, old_name in _matched_names_by_content.items():
-        if new_name in _matched_names and _matched_names[new_name] != old_name:
-            print(f"Multiple matches for table {path}/{new_name}: {_matched_names[new_name]} by caption and {old_name} by content")
-        else:
-            _matched_names[new_name] = old_name
-    return [Table.from_file(path, m, annotations, match_name=_matched_names.get(m["filename"]), guessed_tags=_guessed_tags.get(m["filename"])) for m in metadata]
+
+    if migrate:
+        _matched_names_by_captions = {} #_match_tables_by_captions(annotations, metadata)
+        _matched_names_by_content, _guessed_tags = _match_tables_by_content(path, annotations, metadata)
+        _matched_names = _matched_names_by_captions
+        for new_name, old_name in _matched_names_by_content.items():
+            if new_name in _matched_names and _matched_names[new_name] != old_name:
+                print(f"Multiple matches for table {path}/{new_name}: {_matched_names[new_name]} by caption and {old_name} by content")
+            else:
+                _matched_names[new_name] = old_name
+    else:
+        _matched_names = {}
+        _guessed_tags = {}
+    return [Table.from_file(path, m, annotations, migrate=migrate, match_name=_matched_names.get(m["filename"]), guessed_tags=_guessed_tags.get(m["filename"])) for m in metadata]

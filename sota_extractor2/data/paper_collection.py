@@ -36,9 +36,9 @@ def _load_texts(path, jobs):
     return {text.meta.id: text for text in texts}
 
 
-def _load_tables(path, annotations, jobs):
+def _load_tables(path, annotations, jobs, migrate):
     files = list(path.glob("**/metadata.json"))
-    tables = Parallel(n_jobs=jobs, prefer="processes")(delayed(read_tables)(f.parent, annotations.get(f.parent.name)) for f in files)
+    tables = Parallel(n_jobs=jobs, prefer="processes")(delayed(read_tables)(f.parent, annotations.get(f.parent.name), migrate) for f in files)
     return {f.parent.name: tbls for f, tbls in zip(files, tables)}
 
 
@@ -53,7 +53,7 @@ class PaperCollection(UserList):
         super().__init__(data)
 
     @classmethod
-    def from_files(cls, path, annotations_path=None, load_texts=True, load_tables=True, jobs=-1):
+    def from_files(cls, path, annotations_path=None, load_texts=True, load_tables=True, jobs=-1, migrate=False):
         path = Path(path)
         if annotations_path is None:
             annotations_path = path / "structure-annotations.json"
@@ -64,7 +64,7 @@ class PaperCollection(UserList):
 
         annotations = _load_annotated_papers(annotations_path)
         if load_tables:
-            tables = _load_tables(path, annotations, jobs)
+            tables = _load_tables(path, annotations, jobs, migrate)
         else:
             tables = {}
             annotations = {}
