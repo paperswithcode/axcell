@@ -166,19 +166,60 @@ def move_out_references(table):
         wrap_elem_content(anchor, f"<ref id='{fix_id(anchor['href'][1:])}'>", "</ref>")
 
 
-#def move_out_text_styles(table):
-#    ltx_font = 'ltx_font_'
-#    font_selector = f'[class*="{ltx_font}"]'
-#
-#    for elem in table.select(f"span{font_selector}, a{font_selector}, em{font_selector}"):
-#        for c in set(elem.attrs["class"]):
-#            if c == ltx_font + 'bold':
-#                wrap_elem_content(elem, "<b>", "</b>")
-#            elif c == ltx_font + 'italic':
-#                wrap_elem_content(elem, "<i>", "</i>")
+bold_font_weight_re = re.compile(r"(^|;)\s*font-weight:\s*(bold|700|800|900)\s*(;|$)")
+bold_mathjax_font_re = re.compile(r"^MJXc-TeX-\w*-BI?$")
+italic_font_style_re = re.compile(r"(^|;)\s*font-style:\s*italic\s*(;|$)")
+italic_mathjax_font_re = re.compile(r"^MJXc-TeX-\w*-B?I$")
+
+def _has_font_class(classes, font_re):
+    return any(font_re.match(cls) for cls in classes)
 
 
-def move_out_styles(table):
+font_color_re = re.compile(r"(^|;)\s*color:\s*(?P<color>#[0-9A-Fa-f]{3,6}|red|green|blue)\s*(;|$)")
+def _extract_color_from_style(style):
+    m = font_color_re.search(style)
+    if m:
+        color = m["color"]
+        if color[0] == "#":
+            color = color[1:]
+            if len(color) != 6:
+                color = (color + color)[:6]
+            r, g, b = int(color[0:2], 16), int(color[2:4], 16), int(color[4:6], 16)
+            if r > 2 * g and r > 2 * b:
+                color = "red"
+            elif g > 2 * r and g > 2 * b:
+                color = "green"
+            elif b > 2 * r and b > 2 * g:
+                color = "blue"
+            else:
+                return
+        return color
+    return
+
+
+def move_out_text_styles(table):
+    for elem in table.select('.ltx_font_bold, [style*="font-weight"], [class*="MJXc-TeX-"]'):
+        classes = elem.get("class", [])
+        style   = elem.get("style", "")
+        if "ltx_font_bold" in classes or bold_font_weight_re.search(style) \
+                or _has_font_class(classes, bold_mathjax_font_re):
+                    wrap_elem_content(elem, "<bold>", "</bold>")
+
+    for elem in table.select('.ltx_font_italic, [style*="font-style"], [class*="MJXc-TeX-"]'):
+        classes = elem.get("class", [])
+        style   = elem.get("style", "")
+        if "ltx_font_italic" in classes or italic_font_style_re.search(style) \
+                or _has_font_class(classes, italic_mathjax_font_re):
+                    wrap_elem_content(elem, "<italic>", "</italic>")
+
+    for elem in table.select('[style*="color"]'):
+        style = elem.get("style")
+        color = _extract_color_from_style(style)
+        if color:
+            wrap_elem_content(elem, f"<{color}>", f"</{color}>")
+
+
+def move_out_cell_styles(table):
     ltx_border = 'ltx_border_'
     ltx_align = 'ltx_align_'
     ltx_th = 'ltx_th'
@@ -312,7 +353,8 @@ def extract_tables(filename, outdir):
             continue
         remove_footnotes(table)
         move_out_references(table)
-        move_out_styles(table)
+        move_out_text_styles(table)
+        move_out_cell_styles(table)
         escape_table_content(table)
         tab = html2data(table)
         if tab is None:

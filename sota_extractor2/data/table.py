@@ -51,7 +51,8 @@ def read_str_csv(filename):
 
 
 class Table:
-    def __init__(self, df, layout, caption=None, figure_id=None, annotations=None, migrate=False, old_name=None, guessed_tags=None):
+    def __init__(self, name, df, layout, caption=None, figure_id=None, annotations=None, migrate=False, old_name=None, guessed_tags=None):
+        self.name = name
         self.df = df
         self.caption = caption
         self.figure_id = figure_id
@@ -118,7 +119,7 @@ class Table:
                 table_ann = None
         else:
             table_ann = None
-        return cls(df, layout, metadata.get('caption'), metadata.get('figure_id'), table_ann, migrate, match_name, guessed_tags)
+        return cls(metadata['filename'], df, layout, metadata.get('caption'), metadata.get('figure_id'), table_ann, migrate, match_name, guessed_tags)
 
     def display(self):
         display_table(self.df.applymap(lambda x: x.value).values, self.df.applymap(lambda x: x.gold_tags).values)

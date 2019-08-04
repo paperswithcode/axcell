@@ -8,7 +8,7 @@ from .json import *
 
 def get_all_tables(papers):
     for paper in papers:
-        for table in paper.table_set.all():
+        for table in paper.table_set.filter(parser="latexml"):
             if 'trash' not in table.gold_tags and table.gold_tags != '':
                 table.paper_id = paper.arxiv_id
                 yield table
@@ -104,6 +104,8 @@ def create_evidence_records(textfrag, cell, table):
                "this_paper": textfrag.paper_id == table.paper_id,
                "row": cell.row,
                "col": cell.col,
+               "row_context": " border ".join([str(s) for s in table.matrix[cell.row]]),
+               "col_context": " border ".join([str(s) for s in table.matrix[:, cell.col]]),
                "ext_id": cell_ext_id
                #"table_id":table_id
                }

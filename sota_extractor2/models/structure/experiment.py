@@ -17,6 +17,7 @@ class Labels(Enum):
     PAPER_MODEL=2
     COMPETING_MODEL=3
     METRIC=4
+    PARAMS=5
 
 label_map = {
     "dataset": Labels.DATASET.value,
@@ -24,7 +25,8 @@ label_map = {
     "model-paper": Labels.PAPER_MODEL.value,
     "model-best": Labels.PAPER_MODEL.value,
     "model-competing": Labels.COMPETING_MODEL.value,
-    "dataset-metric": Labels.METRIC.value
+    "dataset-metric": Labels.METRIC.value,
+    "model-params": Labels.PARAMS.value
 }
 
 # put here to avoid recompiling, used only in _limit_context
@@ -165,31 +167,31 @@ class Experiment:
             raise Exception("Masking with evidence_source='text' makes no sense")
 
         if self.mark_this_paper:
-            df = df.groupby(by=["ext_id", "cell_content", "cell_type", "this_paper"]).text.apply(
+            df = df.groupby(by=["ext_id", "cell_content", "cell_type", "this_paper", "row_context", "col_context"]).text.apply(
                 lambda x: "\n".join(x.values)).reset_index()
             this_paper_map = {
                 True: "this paper",
                 False: "other paper"
             }
             df.text = "xxfld 3 " + df.this_paper.apply(this_paper_map.get) + " " + df.text
-            df = df.groupby(by=["ext_id", "cell_content", "cell_type"]).text.apply(
+            df = df.groupby(by=["ext_id", "cell_content", "cell_type", "row_context", "col_context"]).text.apply(
                 lambda x: " ".join(x.values)).reset_index()
         elif not self.fixed_this_paper:
             if self.merge_fragments and self.merge_type == "concat":
-                df = df.groupby(by=["ext_id", "cell_content", "cell_type", "this_paper"]).text.apply(
+                df = df.groupby(by=["ext_id", "cell_content", "cell_type", "this_paper", "row_context", "col_context"]).text.apply(
                     lambda x: "\n".join(x.values)).reset_index()
             if self.drop_duplicates:
-                df = df.drop_duplicates(["text", "cell_content", "cell_type"]).fillna("")
+                df = df.drop_duplicates(["text", "cell_content", "cell_type", "row_context", "col_context"]).fillna("")
             if self.this_paper:
                 df = df[df.this_paper]
         else:
             if self.this_paper:
                 df = df[df.this_paper]
             if self.merge_fragments and self.merge_type == "concat":
-                df = df.groupby(by=["ext_id", "cell_content", "cell_type"]).text.apply(
+                df = df.groupby(by=["ext_id", "cell_content", "cell_type", "row_context", "col_context"]).text.apply(
                     lambda x: "\n".join(x.values)).reset_index()
             if self.drop_duplicates:
-                df = df.drop_duplicates(["text", "cell_content", "cell_type"]).fillna("")
+                df = df.drop_duplicates(["text", "cell_content", "cell_type", "row_context", "col_context"]).fillna("")
 
         if self.split_btags:
             df["text"] = df["text"].replace(re.compile(r"(\</?b\>)"), r" \1 ")
@@ -250,7 +252,7 @@ class Experiment:
             cm = cm / cm.sum(axis=1)[:, None]
         if fmt is None:
             fmt = "0.2f" if normalize else "d"
-        target_names = ["OTHER", "DATASET", "MODEL (paper)", "MODEL (comp.)", "METRIC"]
+        target_names = ["OTHER", "DATASET", "MODEL (paper)", "MODEL (comp.)", "METRIC", "PARAMS"]
         df_cm = pd.DataFrame(cm, index=[i for i in target_names],
                              columns=[i for i in target_names])
         plt.figure(figsize=(10, 10))
