@@ -51,7 +51,8 @@ def put_footnote_anchors(soup):
     for elem in soup.select('.ltx_role_footnote > .ltx_note_mark'):
         ft = elem.parent
         id_str = ft.get('id')
-        elem.string = f" xxref-{_simplify_anchor(id_str)} "
+        if id_str:
+            elem.string = f" xxref-{_simplify_anchor(id_str)} "
 
     for elem in soup.select('.ltx_note_content > .ltx_tag_note'):
         ft = elem.find_parent(class_="ltx_role_footnote")

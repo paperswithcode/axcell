@@ -140,8 +140,6 @@ def fix_layout(layout):
 whitespace_tag_re = re.compile(r"<(bold|italic|red|green|blue)>(\s*)</\1>")
 dummy_close_tag_re = re.compile(r"</(bold|italic|red|green|blue)>(\s*)<\1>")
 def clear_cell(s):
-    if "BP by Lyapunov equatio" in s:
-        print(s)
     s = whitespace_tag_re.sub(r"\2", s)
     s = dummy_close_tag_re.sub(r"\2", s)
     return s.strip()

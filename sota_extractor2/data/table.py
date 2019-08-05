@@ -42,7 +42,7 @@ def str2cell(s):
 
 def read_str_csv(filename):
     try:
-        df = pd.read_csv(filename, header=None, dtype=str).fillna('')
+        df = pd.read_csv(filename, header=None, dtype=str, keep_default_na=False)
     except pd.errors.EmptyDataError:
         df = pd.DataFrame()
     return df
