@@ -80,9 +80,9 @@ class LayoutCell:
     span: Set[str]
 
     def __str__(self):
-        borders = ['border-'+x for x in self.borders]
-        align = ['align-'+x for x in self.align]
-        span = ['span-'+x for x in self.span]
+        borders = ['border-'+x for x in sorted(list(self.borders))]
+        align = ['align-'+x for x in sorted(list(self.align))]
+        span = ['span-'+x for x in sorted(list(self.span))]
         header = ["header"] if self.header else []
         return ' '.join(borders + align + span + header)
 
@@ -296,7 +296,7 @@ def set_ids_by_labels(soup):
 
 alg_id_re = re.compile(r"^alg(orithm)?[0-9]+")
 def perhaps_not_tabular(table, float_div):
-    classes = float_div.attrs.get("class")
+    classes = float_div.attrs.get("class", [])
     if 'ltx_table' in classes:
         return False
     if 'ltx_figure' in classes:

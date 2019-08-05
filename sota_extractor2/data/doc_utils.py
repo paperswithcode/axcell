@@ -20,7 +20,7 @@ def _insert_anchor(el, anchor_id, prefix="xxanchor"):
 
 def put_dummy_anchors(soup):
     for elem in soup.select(
-            '.ltx_appendix, .ltx_bibliography, .ltx_bibitem, ' + \
+            '.ltx_bibitem, ' + \
             '.ltx_figure, .ltx_float, ' + \
             '.ltx_picture, .ltx_theorem'):
         id_str = elem.get('id', '')
@@ -248,7 +248,7 @@ class Grouper:
             yield r
 
     def new_section(self, header_el):
-        if not self.section_output: # output (possibly) empty section so header won't be lost
+        if not self.section_output or self.out: # output (possibly) empty section so header won't be lost
             yield from self.flush()
         self.section_output = False
         self.in_section = True
@@ -260,6 +260,8 @@ class Grouper:
         t = get_text(el).strip()
         if t != "":
             self.out.append(t)
+            return True
+        return False
 
     def group_content(self, doc):
         for el in walk(doc):
@@ -269,10 +271,14 @@ class Grouper:
             elif el.name == "h1":
                 continue
             elif 'ltx_para' in classes or el.name == "figure" or 'ltx_bibitem' in classes:
-                self.append(el)
-                yield from self.flush()
+                has_content = self.append(el)
+                if has_content:
+                    yield from self.flush()
             else:
                 self.append(el)
+        self.in_section = True
+        if not self.section_output or self.out:
+            yield from self.flush()
 
 
 def group_content(doc):

@@ -207,8 +207,6 @@ class Paper(Document):
         idx = 0
         for idx, idx2, section_header, content in group_content(doc):
             content = content.strip()
-            if content == "":
-                continue
             if p.abstract == "" and "abstract" in section_header.lower():
                 p.abstract = clean_abstract(content)
             else:
