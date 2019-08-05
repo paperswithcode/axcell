@@ -134,9 +134,22 @@ def fix_layout(layout):
                     cell.borders -= {"b", "bb", "t", "tt"}
 
 
+# does not deal with nested tags
+# f.e., </bold></red><red><bold>
+# or <bold><bold>
+whitespace_tag_re = re.compile(r"<(bold|italic|red|green|blue)>(\s*)</\1>")
+dummy_close_tag_re = re.compile(r"</(bold|italic|red|green|blue)>(\s*)<\1>")
+def clear_cell(s):
+    if "BP by Lyapunov equatio" in s:
+        print(s)
+    s = whitespace_tag_re.sub(r"\2", s)
+    s = dummy_close_tag_re.sub(r"\2", s)
+    return s.strip()
+
+
 def decouple_layout(df):
     split = df.applymap(lambda x: ("", "") if x == "" else x.split(";", 1))
-    tab = split.applymap(lambda x: x[1])
+    tab = split.applymap(lambda x: clear_cell(x[1]))
     layout = split.applymap(lambda x: to_layout(x[0]))
     fix_layout(layout)
     return tab, layout
