@@ -33,24 +33,25 @@ def resolve_references(reference_trie, bibitems):
     print(f"Found {found} ({found / len(bibitems)})")
     return resolved
 
+def bib_elems(html):
+    return html.select(".ltx_bibliography .ltx_bibitem[id]")
+
 def update_references(html, mapping):
     anchors = html.select('[href^="#"]')
     for anchor in anchors:
         target = anchor['href'][1:]
         anchor['href'] = '#' + mapping.get(target, target)
-    anchors = html.select('a[id]:not([id=""])')
+    anchors = bib_elems(html)
     for anchor in anchors:
         bib_id = anchor['id']
         anchor['id'] = mapping.get(bib_id, bib_id)
 
 def get_bibitems(html):
-    elems = html.select(".thebibliography p.bibitem")
+    elems = bib_elems(html)
     bibitems = {}
     for elem in elems:
-        anchors = elem.select('a[id]:not([id=""])')
-        if anchors:
-            bib_id = anchors[0]['id']
-            bibitems[bib_id] = get_text(elem)
+        bib_id = elem['id']
+        bibitems[bib_id] = get_text(elem)
     return bibitems
 
 def save_html(path, html):

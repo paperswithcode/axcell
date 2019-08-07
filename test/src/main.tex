@@ -1,5 +1,6 @@
 \documentclass{article}
 \usepackage{booktabs}
+\usepackage{xcolor}
 \title{DILBERT: Distilling Inner Latent BERT variables}
 \author{John Doe}
 \begin{document}
@@ -8,6 +9,9 @@
   In this paper we achieve state-of-the-art performance in random number generation.
 \end{abstract}
 \section{Introduction}
+\section{Model}
+\subsection{Preprocessing}
+\subsection{Architecture}
 \section{Experiments}
 In this section we present Table~\ref{tab}.
   \begin{table}
@@ -20,5 +24,15 @@ In this section we present Table~\ref{tab}.
     \end{tabular}
     \caption{A table.}
     \label{tab}
+  \end{table}
+  \begin{table}
+    \begin{tabular}{lcr} \toprule
+      \textbf{bold text} & \textit{italic text} & \textbf{\textit{bold italic text}}\\\midrule
+      \textcolor{red}{red text} & \textcolor{green}{green text} & \textcolor{blue}{blue text}\\
+      $\mathbf{5.4\%}$ & $\mathit{3.8\%}$ & $\mathbf{11.2}\pm 0.15$\\\midrule
+      \textbf{an \textit{italic} text inside bold}  & {\bf \textcolor{red}{bold red}} & \\\bottomrule
+    \end{tabular}
+    \caption{A table.}
+    \label{tab2}
   \end{table}
 \end{document}

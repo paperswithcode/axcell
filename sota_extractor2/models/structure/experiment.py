@@ -16,13 +16,17 @@ class Labels(Enum):
     DATASET=1
     PAPER_MODEL=2
     COMPETING_MODEL=3
+    METRIC=4
+#    PARAMS=5
 
 label_map = {
     "dataset": Labels.DATASET.value,
     "dataset-sub": Labels.DATASET.value,
     "model-paper": Labels.PAPER_MODEL.value,
     "model-best": Labels.PAPER_MODEL.value,
-    "model-competing": Labels.COMPETING_MODEL.value
+    "model-competing": Labels.COMPETING_MODEL.value,
+    "dataset-metric": Labels.METRIC.value,
+#    "model-params": Labels.PARAMS.value
 }
 
 # put here to avoid recompiling, used only in _limit_context
@@ -43,6 +47,9 @@ class Experiment:
     context_tokens: int = None      # max. number of words before <b> and after </b>
     analyzer: str = "word"            # "char", "word" or "char_wb"
     lowercase: bool = True
+    remove_num: bool = True
+    drop_duplicates: bool = True
+    mark_this_paper: bool = False
 
     class_weight: str = None
     multinomial_type: str = "manual"  # "manual", "ovr", "multinomial"
@@ -142,6 +149,8 @@ class Experiment:
     def _transform_df(self, df):
         if self.merge_type not in ["concat", "vote_maj", "vote_avg", "vote_max"]:
             raise Exception(f"merge_type must be one of concat, vote_maj, vote_avg, vote_max, but {self.merge_type} was given")
+        if self.mark_this_paper and (self.merge_type != "concat" or self.this_paper):
+            raise Exception("merge_type must be 'concat' and this_paper must be false")
         #df = df[df["cell_type"] != "table-meta"]  # otherwise we get precision 0 on test set
         if self.evidence_limit is not None:
             df = df.groupby(by=["ext_id", "this_paper"]).head(self.evidence_limit)
@@ -154,29 +163,42 @@ class Experiment:
                 df["text"] = df[self.evidence_source].replace(re.compile("<b>.*?</b>"), " xxmask ")
             else:
                 df["text"] = df[self.evidence_source]
-
         elif self.mask:
             raise Exception("Masking with evidence_source='text' makes no sense")
-        if not self.fixed_this_paper:
+
+        if self.mark_this_paper:
+            df = df.groupby(by=["ext_id", "cell_content", "cell_type", "this_paper", "row_context", "col_context"]).text.apply(
+                lambda x: "\n".join(x.values)).reset_index()
+            this_paper_map = {
+                True: "this paper",
+                False: "other paper"
+            }
+            df.text = "xxfld 3 " + df.this_paper.apply(this_paper_map.get) + " " + df.text
+            df = df.groupby(by=["ext_id", "cell_content", "cell_type", "row_context", "col_context"]).text.apply(
+                lambda x: " ".join(x.values)).reset_index()
+        elif not self.fixed_this_paper:
             if self.merge_fragments and self.merge_type == "concat":
-                df = df.groupby(by=["ext_id", "cell_content", "cell_type", "this_paper"]).text.apply(
+                df = df.groupby(by=["ext_id", "cell_content", "cell_type", "this_paper", "row_context", "col_context"]).text.apply(
                     lambda x: "\n".join(x.values)).reset_index()
-            df = df.drop_duplicates(["text", "cell_content", "cell_type"]).fillna("")
+            if self.drop_duplicates:
+                df = df.drop_duplicates(["text", "cell_content", "cell_type", "row_context", "col_context"]).fillna("")
             if self.this_paper:
                 df = df[df.this_paper]
         else:
             if self.this_paper:
                 df = df[df.this_paper]
             if self.merge_fragments and self.merge_type == "concat":
-                df = df.groupby(by=["ext_id", "cell_content", "cell_type"]).text.apply(
+                df = df.groupby(by=["ext_id", "cell_content", "cell_type", "row_context", "col_context"]).text.apply(
                     lambda x: "\n".join(x.values)).reset_index()
-            df = df.drop_duplicates(["text", "cell_content", "cell_type"]).fillna("")
+            if self.drop_duplicates:
+                df = df.drop_duplicates(["text", "cell_content", "cell_type", "row_context", "col_context"]).fillna("")
 
         if self.split_btags:
             df["text"] = df["text"].replace(re.compile(r"(\</?b\>)"), r" \1 ")
         df = df.replace(re.compile(r"(xxref|xxanchor)-[\w\d-]*"), "\\1 ")
-        df = df.replace(re.compile(r"(^|[ ])\d+\.\d+(\b|%)"), " xxnum ")
-        df = df.replace(re.compile(r"(^|[ ])\d+(\b|%)"), " xxnum ")
+        if self.remove_num:
+            df = df.replace(re.compile(r"(^|[ ])\d+\.\d+(\b|%)"), " xxnum ")
+            df = df.replace(re.compile(r"(^|[ ])\d+(\b|%)"), " xxnum ")
         df = df.replace(re.compile(r"\bdata set\b"), " dataset ")
         df["label"] = df["cell_type"].apply(lambda x: label_map.get(x, 0))
         df["label"] = pd.Categorical(df["label"])
@@ -193,6 +215,7 @@ class Experiment:
         r = {}
         r[f"{prefix}_accuracy"] = m["accuracy"]
         r[f"{prefix}_precision"] = m["precision"]
+        r[f"{prefix}_recall"] = m["recall"]
         r[f"{prefix}_cm"] = confusion_matrix(true_y, preds).tolist()
         self.update_results(**r)
 
@@ -214,26 +237,29 @@ class Experiment:
                 true_y = tdf["label"]
             self._set_results(prefix, preds, true_y)
 
-    def show_results(self, *ds):
+    def show_results(self, *ds, normalize=True):
         if not len(ds):
             ds = ["train", "valid", "test"]
         for prefix in ds:
             print(f"{prefix} dataset")
-            print(f" * accuracy: {self.results[f'{prefix}_accuracy']}")
-            print(f" * precision: {self.results[f'{prefix}_precision']}")
-            self._plot_confusion_matrix(np.array(self.results[f'{prefix}_cm']), normalize=True)
+            print(f" * accuracy: {self.results[f'{prefix}_accuracy']:.3f}")
+            print(f" * μ-precision: {self.results[f'{prefix}_precision']:.3f}")
+            print(f" * μ-recall: {self.results[f'{prefix}_recall']:.3f}")
+            self._plot_confusion_matrix(np.array(self.results[f'{prefix}_cm']), normalize=normalize)
 
-    def _plot_confusion_matrix(self, cm, normalize):
+    def _plot_confusion_matrix(self, cm, normalize, fmt=None):
         if normalize:
             cm = cm / cm.sum(axis=1)[:, None]
-        target_names = ["OTHER", "DATASET", "MODEL (paper)", "MODEL (comp.)"]
+        if fmt is None:
+            fmt = "0.2f" if normalize else "d"
+        target_names = ["OTHER", "DATASET", "MODEL (paper)", "MODEL (comp.)", "METRIC"] #, "PARAMS"]
         df_cm = pd.DataFrame(cm, index=[i for i in target_names],
                              columns=[i for i in target_names])
         plt.figure(figsize=(10, 10))
         ax = sn.heatmap(df_cm,
                         annot=True,
                         square=True,
-                        fmt="0.2f" if normalize else "d",
+                        fmt=fmt,
                         cmap="YlGnBu",
                         mask=cm == 0,
                         linecolor="black",

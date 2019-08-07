@@ -20,13 +20,11 @@ all:	$(ANNOTATIONS_DIR)/pdfs-urls.csv $(ANNOTATIONS_DIR)/sources-urls.csv extrac
 
 .PHONY: test
 test: DATA_DIR = test/data
-test: TABLE_FILE = $(TABLES_DIR)/paper/table_01.csv
 test:
 	mkdir -p $(ARCHIVES_DIR)
 	tar czf $(ARCHIVES_DIR)/paper.gz -C test/src .
 	$(MAKE) DATA_DIR=$(DATA_DIR) --always-make extract_all
-	cat $(TABLE_FILE)
-	diff $(TABLE_FILE) test/src/table_01.csv
+	diff -r $(TABLES_DIR) test/expected
 
 .PHONY: extract_all extract_texts extract_tables fix_htmls_all convert_all unpack_all
 

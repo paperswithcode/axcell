@@ -1,0 +1,76 @@
+From 6eeebce933599340b44a0d61d69ad409f6944d44 Mon Sep 17 00:00:00 2001
+From: Deyan Ginev <d.ginev@jacobs-university.de>
+Date: Wed, 24 Jul 2019 12:49:40 -0400
+Subject: [PATCH] avoid Mouth time-travel bug when preparing url from an XUntil
+ context
+
+---
+ lib/LaTeXML/Package/hyperref.sty.ltxml | 9 ++++-----
+ lib/LaTeXML/Package/url.sty.ltxml      | 5 ++---
+ 2 files changed, 6 insertions(+), 8 deletions(-)
+
+diff --git a/lib/LaTeXML/Package/hyperref.sty.ltxml b/lib/LaTeXML/Package/hyperref.sty.ltxml
+index 48a9af302..d07afc015 100644
+--- a/lib/LaTeXML/Package/hyperref.sty.ltxml
++++ b/lib/LaTeXML/Package/hyperref.sty.ltxml
+@@ -112,7 +112,7 @@ DefConstructor('\@add@PDF@RDFa@triples', sub {
+         if (my $entry = ($pdfkey_property{$key})) {
+           my ($property, $object, $datatype) = @$entry;
+           my $value = LookupMapping('Hyperref_options', $key);
+-          my $node = $document->openElementAt($root, 'ltx:rdf',
++          my $node  = $document->openElementAt($root, 'ltx:rdf',
+             property => $property, $object => $value,
+             ($datatype ? (datatype => $datatype) : ()));
+           # Must do directly; $document->setAttribute omits empty attributes
+@@ -136,17 +136,16 @@ DefMacro('\href Verbatim {}', '\@@Url\href{}{}{#1}{#2}');
+ # Redefine \@url to sanitize the argument less
+ DefMacro('\@Url Token', sub {
+     my ($gullet, $cmd) = @_;
+-    my $mouth = $gullet->getMouth;
+     my ($open, $close, $url);
+     $open = $gullet->readToken;
+     StartSemiverbatim('%');
+     Let('~', T_OTHER('~'));    # Needs special protection?
+     if ($open->equals(T_BEGIN)) {
+       $open = T_OTHER('{'); $close = T_OTHER('}');
+-      $url = $gullet->readBalanced(1); }    # Expand as we go!
++      $url  = $gullet->readBalanced(1); }            # Expand as we go!
+     else {
+       $close = $open = T_OTHER($open->getString);
+-      $url = $mouth->readTokens($close); }
++      $url   = $gullet->readUntil($close); }
+     EndSemiverbatim();
+     my @toks = grep { $_->getCatcode != CC_SPACE; } $url->unlist;
+     # Identical with url's \@Url except, let CS's through!
+@@ -212,7 +211,7 @@ DefConstructor('\autoref Semiverbatim',
+ 
+ DefMacro('\lx@autorefnum@@{}', sub {
+     my ($gullet, $type) = @_;
+-    my $type_s = ToString($type);
++    my $type_s  = ToString($type);
+     my $counter = LookupMapping('counter_for_type', $type_s) || $type_s;
+     return Tokens(
+       (LookupDefinition(T_CS('\\' . $type_s . 'autorefname'))
+diff --git a/lib/LaTeXML/Package/url.sty.ltxml b/lib/LaTeXML/Package/url.sty.ltxml
+index da6223359..c208a8dc5 100644
+--- a/lib/LaTeXML/Package/url.sty.ltxml
++++ b/lib/LaTeXML/Package/url.sty.ltxml
+@@ -46,16 +46,15 @@ DefMacro('\DeclareUrlCommand{}{}', '\def#1{\begingroup #2\@Url#1}');
+ # In any case, we read the verbatim arg, and build a Whatsit for @@Url
+ DefMacro('\@Url Token', sub {
+     my ($gullet, $cmd) = @_;
+-    my $mouth = $gullet->getMouth;
+     my ($open, $close, $url);
+     StartSemiverbatim('%');
+     $open = $gullet->readToken;
+     if ($open->equals(T_BEGIN)) {
+       $open = T_OTHER('{'); $close = T_OTHER('}');
+-      $url = $gullet->readBalanced; }
++      $url  = $gullet->readBalanced; }
+     else {
+       $close = $open = T_OTHER($open->getString);
+-      $url = $mouth->readTokens($close); }
++      $url   = $gullet->readUntil($close); }
+     EndSemiverbatim();
+ 
+     my @toks = grep { $_->getCatcode != CC_SPACE; } $url->unlist;

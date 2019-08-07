@@ -4,8 +4,9 @@ import json
 
 
 class Tabular:
-    def __init__(self, data, caption, figure_id=None):
+    def __init__(self, data, layout, caption, figure_id=None):
         self.data = data
+        self.layout = layout
         self.cell_tags = pd.DataFrame().reindex_like(data).fillna('')
         self.datasets = set()
         self.metrics = set()
