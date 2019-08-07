@@ -44,7 +44,8 @@ def _load_tables(path, annotations, jobs, migrate):
 
 def _load_annotated_papers(path):
     dump = load_gql_dump(path, compressed=path.suffix == ".gz")["allPapers"]
-    annotations = {a.arxiv_id: a for a in dump}
+    annotations = {remove_arxiv_version(a.arxiv_id): a for a in dump}
+    annotations.update({a.arxiv_id: a for a in dump})
     return annotations
 
 

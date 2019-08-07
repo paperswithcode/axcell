@@ -36,8 +36,22 @@ def extract_references(s):
     return text, refs
 
 
+style_tags_re = re.compile(r"</?(bold|italic|red|green|blue)>")
+def remove_text_styles(s):
+    return style_tags_re.sub("", s)
+
+
+reference_id_re = re.compile(r"<ref id='([^']*)'>")
+def raw_value_to_html(s):
+    s = style_tags_re.sub(lambda x: "</span>" if x[0].startswith("</") else f'<span class="text-{x[1]}">', s)
+    s = s.replace("</ref>", "</a>")
+    s = reference_id_re.sub(r'<a title="\1">', s)
+    return s
+
+
 def str2cell(s):
     value, refs = extract_references(s)
+    value = remove_text_styles(value)
     return Cell(value=value, raw_value=s, refs=refs)
 
 def read_str_csv(filename):
@@ -122,7 +136,7 @@ class Table:
         return cls(metadata['filename'], df, layout, metadata.get('caption'), metadata.get('figure_id'), table_ann, migrate, match_name, guessed_tags)
 
     def display(self):
-        display_table(self.df.applymap(lambda x: x.value).values, self.df.applymap(lambda x: x.gold_tags).values)
+        display_table(self.df.applymap(lambda x: raw_value_to_html(x.raw_value)).values, self.df.applymap(lambda x: x.gold_tags).values, self.df.applymap(lambda x:x.layout).values)
 
 #####
 # this code is used to migrate table annotations from

@@ -17,7 +17,7 @@ class Labels(Enum):
     PAPER_MODEL=2
     COMPETING_MODEL=3
     METRIC=4
-    PARAMS=5
+#    PARAMS=5
 
 label_map = {
     "dataset": Labels.DATASET.value,
@@ -26,7 +26,7 @@ label_map = {
     "model-best": Labels.PAPER_MODEL.value,
     "model-competing": Labels.COMPETING_MODEL.value,
     "dataset-metric": Labels.METRIC.value,
-    "model-params": Labels.PARAMS.value
+#    "model-params": Labels.PARAMS.value
 }
 
 # put here to avoid recompiling, used only in _limit_context
@@ -252,7 +252,7 @@ class Experiment:
             cm = cm / cm.sum(axis=1)[:, None]
         if fmt is None:
             fmt = "0.2f" if normalize else "d"
-        target_names = ["OTHER", "DATASET", "MODEL (paper)", "MODEL (comp.)", "METRIC", "PARAMS"]
+        target_names = ["OTHER", "DATASET", "MODEL (paper)", "MODEL (comp.)", "METRIC"] #, "PARAMS"]
         df_cm = pd.DataFrame(cm, index=[i for i in target_names],
                              columns=[i for i in target_names])
         plt.figure(figsize=(10, 10))

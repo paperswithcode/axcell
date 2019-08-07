@@ -13,7 +13,7 @@ def display_html(s): return display(HTML(s))
 
 
 
-def display_table(table, structure=None):
+def display_table(table, structure=None, layout=None):
     """
         matrix - 2d ndarray with cell values
         strucutre - 2d ndarray with structure annotation
@@ -23,14 +23,15 @@ def display_table(table, structure=None):
     else:
         matrix = table
     if structure is None: structure = table.matrix_gold_tags
+    if layout is None: layout = np.zeros_like(matrix, dtype=str)
     html = []
     html.append(table_style)
     html.append('<div class="tableWrapper">')
     html.append("<table>")
-    for row,struc_row in zip(matrix, structure):
+    for row,struc_row, layout_row in zip(matrix, structure, layout):
         html.append("<tr>")
-        for cell,struct in zip(row,struc_row):
-            html.append(f'<td class="{struct}">{cell}</td>')
+        for cell,struct,layout in zip(row,struc_row,layout_row):
+            html.append(f'<td class="{struct} {layout}">{cell}</td>')
         html.append("</tr>")
     html.append("</table>")
     html.append('</div>')
