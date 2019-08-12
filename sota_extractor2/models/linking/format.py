@@ -1,0 +1,32 @@
+import re
+from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP, InvalidOperation
+
+float_value_re = re.compile(r"([+-]?(?:(?:\d{1,2}(?:,\d{3})+|\d+)(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)")
+float_value_nc = re.compile(r"(?:[+-]?(?:(?:\d{1,2}(?:,\d{3})+|\d+)(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)")
+par_re = re.compile(r"\{([^\}]*)\}")
+escaped_whitespace_re = re.compile(r"(\\\s)+")
+
+def format_to_regexp(format):
+    placeholders = par_re.split(format.strip())
+    regexp = ""
+    fn=lambda x: x
+    for i, s in enumerate(placeholders):
+        if i % 2 == 0:
+            regexp += escaped_whitespace_re.sub(r"\\s+", re.escape(s))
+        elif s.strip() == "":
+            regexp += float_value_nc.pattern
+        else:
+            regexp += float_value_re.pattern
+            ss = s.strip();
+            if ss == "100*x" or ss == "100x":
+                fn = lambda x: 100*x
+            elif ss == "x/100":
+                fn = lambda x: x/100
+    return re.compile('^'+regexp+'$'), fn
+
+def extract_value(cell_value, format):
+    regexp, fn = format_to_regexp(format)
+    match = regexp.match(cell_value)
+    if match is None:
+        return Decimal('NaN')
+    return fn(Decimal(match.group(1)))
