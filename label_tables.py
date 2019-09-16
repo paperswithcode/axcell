@@ -9,7 +9,9 @@ import pandas as pd
 import sys
 from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP, InvalidOperation
 from collections import Counter, namedtuple
-
+from joblib import delayed, Parallel
+from sota_extractor2.data.paper_collection import PaperCollection, remove_arxiv_version
+from functools import reduce
 
 arxiv_url_re = re.compile(r"^https?://(www.)?arxiv.org/(abs|pdf|e-print)/(?P<arxiv_id>\d{4}\.[^./]*)(\.pdf)?$")
 
@@ -33,6 +35,8 @@ def get_table(filename):
         return pd.DataFrame()
 
 
+# all_metadata[arxiv_id] = {'table_01.csv': 'Table 1: ...', ...}
+# all_tables[arxiv_id] = {'table_01.csv': DataFrame(...), ...}
 def get_tables(tables_dir):
     tables_dir = Path(tables_dir)
     all_metadata = {}
@@ -223,19 +227,20 @@ def mark_strings(table, tags, values):
                     if match_str(real, s):
                         cell_tags += f"{beg}{s}{end}"
     return cell_tags
-    
+
 
 metatables = {}
-def match_many(output_dir, task_name, dataset_name, metric_name, tables, values):
+def match_many(task_name, dataset_name, metric_name, tables, values):
+    metatables = {}
     for arxiv_id in tables:
         for table in tables[arxiv_id]:
             tags = mark_with_all_comparators(task_name, dataset_name, metric_name, arxiv_id, tables[arxiv_id][table], values)
-            global metatables
             key = (arxiv_id, table)
             if key in metatables:
                 metatables[key] += tags
             else:
                 metatables[key] = tags
+    return metatables
 
 
 def normalize_metric(value):
@@ -256,6 +261,26 @@ def normalize_table(table):
     return table.applymap(normalize_cell)
 
 
+celltags_re = re.compile(r"<hit><sota>(?P<sota>.*?)</sota><paper>(?P<paper>.*?)</paper><model>(?P<model>.*?)</model><metric>(?P<metric>.*?)</metric><dataset>(?P<dataset>.*?)</dataset><task>(?P<task>.*?)</task>(?P<this_paper><this_paper/>)?<comparator>(?P<comparator>.*?)</comparator><matched_cell>(?P<matched_cell>.*?)</matched_cell><matched_str>(?P<matched_str>.*?)</matched_str></hit>")
+def parse_celltags(v):
+    r = []
+    for m in celltags_re.finditer(v):
+        d = m.groupdict()
+        d['this_paper'] = d['this_paper'] is not None
+        r.append(d)
+    return r
+
+
+def celltags_to_json(df):
+    tags = []
+    for r, row in df.iterrows():
+        for c, cell in enumerate(row):
+            if cell != "":
+                tags.append(dict(row=r, col=c, hits=parse_celltags(cell)))
+    return tags
+
+
+
 # for each task with sota row
 #     arxivs <- list of papers related to the task
 #     for each (dataset_name, metric_name) of the task:
@@ -269,22 +294,34 @@ def normalize_table(table):
 #                 if table.arxiv_id == paper_id: mark with this-tag
 PaperResult = namedtuple("PaperResult", ["arxiv_id", "model", "value", "normalized"])
 
+arxivs_by_metrics = {}
+tables = {}
 
-def label_tables(tasksfile, tables_dir):
-    output_dir = Path(tables_dir)
+def match_for(task, dataset, metric):
+    records = arxivs_by_metrics[(task, dataset, metric)]
+    tabs = {r.arxiv_id: tables[r.arxiv_id] for r in records if r.arxiv_id in tables}
+    return match_many(task, dataset, metric, tabs, records)
+
+
+def label_tables(tasksfile, papers_dir, output, jobs=-1):
+    print("Reading PwC entries...", file=sys.stderr)
     tasks = get_sota_tasks(tasksfile)
-    metadata, tables = get_tables(tables_dir)
+    print("Reading tables from files...", file=sys.stderr)
+    pc = PaperCollection.from_files(papers_dir, load_texts=False, load_annotations=False, jobs=jobs)
 
-    arxivs_by_metrics = {}
+    # share data between processes to avoid costly joblib serialization
+    global arxivs_by_metrics, tables
 
-    tables = {arxiv_id: {tab: normalize_table(tables[arxiv_id][tab]) for tab in tables[arxiv_id]} for arxiv_id in tables}
+    print("Normalizing tables...", file=sys.stderr)
+    tables = {p.arxiv_no_version: {tab.name: normalize_table(tab.matrix) for tab in p.tables} for p in pc}
 
+    print("Aggregating papers...", file=sys.stderr)
     for task in tasks:
         for dataset in task.datasets:
             for row in dataset.sota.rows:
                 match = arxiv_url_re.match(row.paper_url)
                 if match is not None:
-                    arxiv_id = match.group("arxiv_id")
+                    arxiv_id = remove_arxiv_version(match.group("arxiv_id"))
                     for metric in row.metrics:
                         arxivs_by_metrics.setdefault((task.name, dataset.name, metric), set()).add(
                             PaperResult(arxiv_id=arxiv_id, model=row.model_name, value=row.metrics[metric],
@@ -292,17 +329,27 @@ def label_tables(tasksfile, tables_dir):
                             )
                         )
 
-    for task, dataset, metric in arxivs_by_metrics:
-        records = arxivs_by_metrics[(task, dataset, metric)]
-        tabs = {r.arxiv_id: tables[r.arxiv_id] for r in records if r.arxiv_id in tables}
-        match_many(output_dir, task, dataset, metric, tabs, records)
+    print("Matching results...", file=sys.stderr)
+    metatables_list = Parallel(n_jobs=jobs, backend="multiprocessing")(
+        [delayed(match_for)(task, dataset, metric)
+         for task, dataset, metric in arxivs_by_metrics])
 
-    global metatables
+    print("Aggregating results...", file=sys.stderr)
+    metatables = {}
+    for mt in metatables_list:
+        for k, v in mt.items():
+            metatables[k] = metatables.get(k, "") + v
+    grouped_metatables = {}
+    for (arxiv_id, tablename), df in metatables.items():
+        grouped_metatables.setdefault(arxiv_id, {})[tablename] = celltags_to_json(df)
 
-    for (arxiv_id, table), best in metatables.items():
-        out = output_dir / arxiv_id
-        out.mkdir(parents=True, exist_ok=True)
-        best.to_csv(out / table.replace("table", "celltags"), header=None, index=None)
+    with open(output, 'wt') as f:
+        json.dump(grouped_metatables, f)
+    # print("Saving matches...", file=sys.stderr)
+    # for (arxiv_id, table), best in metatables.items():
+    #     out = output_dir / arxiv_id
+    #     out.mkdir(parents=True, exist_ok=True)
+    #     best.to_csv(out / table.replace("table", "celltags"), header=None, index=None)
 
 
 if __name__ == "__main__": fire.Fire(label_tables)

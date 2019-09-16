@@ -54,7 +54,7 @@ class PaperCollection(UserList):
         super().__init__(data)
 
     @classmethod
-    def from_files(cls, path, annotations_path=None, load_texts=True, load_tables=True, jobs=-1, migrate=False):
+    def from_files(cls, path, annotations_path=None, load_texts=True, load_tables=True, load_annotations=True, jobs=-1, migrate=False):
         path = Path(path)
         if annotations_path is None:
             annotations_path = path / "structure-annotations.json"
@@ -63,12 +63,13 @@ class PaperCollection(UserList):
         else:
             texts = {}
 
-        annotations = _load_annotated_papers(annotations_path)
+        annotations = {}
         if load_tables:
+            if load_annotations:
+                annotations = _load_annotated_papers(annotations_path)
             tables = _load_tables(path, annotations, jobs, migrate)
         else:
             tables = {}
-            annotations = {}
         outer_join = set(texts).union(set(tables))
 
         papers = [Paper(k, texts.get(k), tables.get(k, []), annotations.get(k)) for k in outer_join]

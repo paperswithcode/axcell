@@ -1,9 +1,8 @@
 import pandas as pd
 from django.db import connection
 
-from sota import models
-from sota.pipeline.format import extract_value
-from sota.pipeline.metrics import Metrics
+from sota_extractor2.models.linking.metrics import Metrics
+from sota_extractor2.models.linking.format import extract_value
 
 
 def q(query, limit=10, index_col=None):
@@ -12,15 +11,12 @@ def q(query, limit=10, index_col=None):
     return pd.read_sql(query, connection, index_col=index_col)
 
 def execute_model_on_papers(model, papers):
-    papers = models.Paper.objects.filter(pk__in=papers)
     proposals = []
     for paper in papers:
-        print("Parsing ", paper.id)
-        paper_proposals = model(paper.id, paper.table_set.all())
+        print("Parsing ", paper.paper_id)
+        paper_proposals = model(paper.paper_id, paper, paper.tables)
         proposals.append(paper_proposals)
     proposals = pd.concat(proposals)
-    proposals["parsed"]=proposals[["raw_value", "format"]].apply(
-        lambda row: float(extract_value(row.raw_value, row.format)), axis=1)
     proposals["experiment_name"] = model.__name__
     return proposals.set_index('cell_ext_id')
 
@@ -36,7 +32,7 @@ def fetch_gold_sota_records():
         sota_record sr 
     JOIN sota_cell sc USING (table_id, row, col)
     JOIN sota_table st ON (sc.table_id=st.id)
-    WHERE dataset != '' and task != '' and metric != '' and model != '';""", limit=None)
+    WHERE parser = 'latexml' and dataset != '' and task != '' and metric != '' and model != '';""", limit=None)
     gold_sota_records["parsed"] = gold_sota_records[["raw_value", "format"]].apply(
         lambda row: float(extract_value(row.raw_value, row.format)), axis=1)
 
@@ -55,22 +51,28 @@ def fetch_gold_sota_papers():
         sota_record sr 
     JOIN sota_cell sc USING (table_id, row, col)
     JOIN sota_table st ON (sc.table_id=st.id)
-    WHERE dataset != '' and task != '' and metric != '' and model != ''
+    WHERE parser = 'latexml' and dataset != '' and task != '' and metric != '' and model != ''
     GROUP BY st.paper_id;""", limit=None)["paper_id"].tolist()
 
 class Evaluator():
-    def __init__(self, model):
+    def __init__(self, model, paper_collection):
         self.model = model
+        self.pc = paper_collection
         self.annotated_papers = fetch_gold_sota_papers()
         self.raw_proposals = None
 
     def run_model(self):
-        self.raw_proposals = execute_model_on_papers(model=self.model, papers=self.annotated_papers)
+        papers = [paper for paper in self.pc if paper.paper_id in self.annotated_papers]
+        self.raw_proposals = execute_model_on_papers(model=self.model, papers=papers)
 
-    def evaluate(self, confidence=-1):
+    def evaluate(self, proposals_filter, track_proposals=False):
         if self.raw_proposals is None:
             self.run_model()
-        proposals = self.raw_proposals[self.raw_proposals['confidence'] > confidence]
+        if track_proposals:
+            all_proposals = self.raw_proposals.copy(deep=True)
+        else:
+            all_proposals = None
+        proposals = proposals_filter(self.raw_proposals, all_proposals)
         gold_sota_records = fetch_gold_sota_records()
         df = gold_sota_records.merge(proposals, 'outer', left_index=True, right_index=True, suffixes=['_gold', '_pred'])
         df = df.reindex(sorted(df.columns), axis=1)
@@ -78,4 +80,8 @@ class Evaluator():
         if "experiment_name" in df.columns:
             del df["experiment_name"]
 
-        return Metrics(df, experiment_name=self.model.__name__)
+        metrics = Metrics(df, experiment_name=self.model.__name__)
+        if track_proposals:
+            return metrics, all_proposals
+        else:
+            return metrics

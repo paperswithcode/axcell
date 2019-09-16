@@ -101,6 +101,8 @@ def create_evidence_records(textfrag, cell, table):
                "cell_type": cell.vals[1],
                "cell_content": fix_refs(cell.vals[0]),
                "cell_reference": cell.vals[2],
+               "cell_layout": cell.vals[3],
+               "cell_styles": cell.vals[4],
                "this_paper": textfrag.paper_id == table.paper_id,
                "row": cell.row,
                "col": cell.col,
@@ -125,7 +127,7 @@ def evidence_for_table(table, paper_limit=10, corpus_limit=1, limit_type='intere
         return dict(paper_limit=paper_limit, corpus_limit=corpus_limit)
     records = [
         record
-            for cell in consume_cells(table.matrix, table.matrix_gold_tags, table.matrix_references) if filter_cells(cell)
+            for cell in consume_cells(table.matrix, table.matrix_gold_tags, table.matrix_references, table.matrix_layout, table.matrix_styles) if filter_cells(cell)
             for evidence in fetch_evidence(cell.vals[0], cell.vals[2], paper_id=table.paper_id, **get_limits(cell.vals[1]))
             for record in create_evidence_records(evidence, cell, table=table)
     ]

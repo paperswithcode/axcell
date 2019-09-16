@@ -5,6 +5,10 @@ import numpy as np
 import pandas as pd
 from elasticsearch import Elasticsearch, client
 import logging
+#from .extractors import DatasetExtractor
+import spacy
+from scispacy.abbreviation import AbbreviationDetector
+from sota_extractor2.models.linking.format import extract_value
 
 
 @dataclass()
@@ -84,9 +88,36 @@ class MatchSearch:
         self.log = logging.getLogger(__name__)
         self.mkquery = mkquery
 
-    def preproc(self, val):
+        self.nlp = spacy.load("en_core_web_sm")
+        abbreviation_pipe = AbbreviationDetector(self.nlp)
+        self.nlp.add_pipe(abbreviation_pipe)
+        self.nlp.disable_pipes("tagger", "ner", "parser")
+
+    def match_abrv(self, dataset, datasets):
+        abrvs = []
+        for ds in datasets:
+            # "!" is a workaround to scispacy error
+            doc = self.nlp(f"! {ds} ({dataset})")
+            for abrv in doc._.abbreviations:
+                if str(abrv) == dataset and str(abrv._.long_form) == ds:
+                    abrvs.append(str(abrv._.long_form))
+        abrvs = list(set(abrvs))
+        if len(abrvs) == 1:
+            print(f"abrv. for {dataset}: {abrvs[0]}")
+            return abrvs[0]
+        elif len(abrvs) == 0:
+            return None
+        else:
+            print(f"Multiple abrvs. for {dataset}: {abrvs}")
+            return None
+
+    def preproc(self, val, datasets=None):
         val = val.strip(',- ')
         val = re.sub("dataset", '', val, flags=re.I)
+        if datasets:
+            abrv = self.match_abrv(val, datasets)
+            if abrv:
+                val += " " + abrv
         #         if self.case:
         #             val += (" " +re.sub("([a-z])([A-Z])", r'\1 \2', val)
         #                     +" " +re.sub("([a-zA-Z])([0-9])", r'\1 \2', val)
@@ -99,9 +130,11 @@ class MatchSearch:
             return self.es.explain('et_taxonomy', doc_type='doc', id=explain_doc_id, body=body)
         return self.es.search('et_taxonomy', doc_type='doc', body=body)["hits"]
 
-    def __call__(self, query):
+    def __call__(self, query, datasets, caption):
         split_re = re.compile('([^a-zA-Z0-9])')
-        query = self.preproc(query).strip()
+        query = self.preproc(query, datasets).strip()
+        if caption:
+            query += " " + self.preproc(caption).strip()[:400]
         results = self.search(query)
         hits = results["hits"][:3]
         df = pd.DataFrame.from_records([
@@ -136,7 +169,7 @@ def handle_pm(value):
                 pass
             # %%
 
-def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonomy_linking):
+def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonomy_linking, datasets):
     # %%
     # Proposal generation
     def consume_cells(matrix):
@@ -170,30 +203,37 @@ def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonom
         for r, c, val in consume_cells(matrix)
         if structure[r, c] == '' and number_re.match(matrix[r, c].strip())]
 
+    # def empty_proposal(cell_ext_id, reason):
+    #     np = "not-present"
+    #     return dict(
+    #         dataset=np, metric=np, task=np, format=np, raw_value=np, model=np,
+    #         model_type=np, cell_ext_id=cell_ext_id, confidence=-1, debug_reason=reason
+    #     )
+
     def linked_proposals(proposals):
         for prop in proposals:
-            if prop.dataset == '' or prop.model_type == '':
-                continue
-            if 'dev' in prop.dataset.lower() or 'train' in prop.dataset.lower():
-                continue
-
-            df = taxonomy_linking(prop.dataset)
-            if not len(df):
-                continue
+            df = taxonomy_linking(prop.dataset, datasets, desc, debug_info=prop)
+            assert len(df) == 1
 
             metric = df['metric'][0]
 
             # heuristyic to handle accuracy vs error
             first_num = (list(handle_pm(prop.raw_value)) + [0])[0]
             format = "{x}"
-            if first_num > 1:
-                first_num /= 100
-                format = "{x/100}"
+            # if first_num > 1:
+            #     first_num /= 100
+            #     format = "{x/100}"
+            if first_num < 1 and '%' not in prop.raw_value:
+                first_num *= 100
+                format = "{100*x}"
+            if '%' in prop.raw_value:
+                format += '%'
 
-            if ("error" in metric or "Error" in metric) and (first_num > 0.5):
+            # if ("error" in metric or "Error" in metric) and (first_num > 0.5):
+            if (metric.strip().lower() == "error") and (first_num > 0.5):
                 metric = "Accuracy"
 
-            yield {
+            linked = {
                 'dataset': df['dataset'][0],
                 'metric': metric,
                 'task': df['task'][0],
@@ -203,22 +243,38 @@ def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonom
                 'model_type': prop.model_type,
                 'cell_ext_id': prop.cell.cell_ext_id,
                 'confidence': df['confidence'][0],
+                'struct_model_type': prop.model_type,
+                'struct_dataset': prop.dataset
             }
+            yield linked
 
-    return list(linked_proposals(proposals))
+    # specify columns in case there's no proposal
+    columns = ['dataset', 'metric', 'task', 'format', 'raw_value', 'model', 'model_type', 'cell_ext_id', 'confidence', 'parsed',
+               'struct_model_type', 'struct_dataset']
+    proposals = pd.DataFrame.from_records(list(linked_proposals(proposals)), columns=columns)
 
-def linked_proposals(paper_ext_id, tables, structure_annotator, taxonomy_linking=MatchSearch()):
+    if len(proposals):
+        proposals["parsed"]=proposals[["raw_value", "format"]].apply(
+            lambda row: float(extract_value(row.raw_value, row.format)), axis=1)
+    return proposals
+
+
+def linked_proposals(paper_ext_id, paper, tables, structure_annotator, taxonomy_linking=MatchSearch(),
+                     dataset_extractor=None):
+    #                     dataset_extractor=DatasetExtractor()):
     proposals = []
+    datasets = dataset_extractor.from_paper(paper)
+    print(f"Extracted datasets: {datasets}")
     for idx, table in enumerate(tables):
         matrix = np.array(table.matrix)
-        structure, tags = structure_annotator(table)
+        structure, tags = structure_annotator(paper, table)
         structure = np.array(structure)
-        desc = table.desc
+        desc = table.caption
         table_ext_id = f"{paper_ext_id}/{table.name}"
 
         if 'sota' in tags and 'no_sota_records' not in tags: # only parse tables that are marked as sota
-            proposals += list(generate_proposals_for_table(table_ext_id, matrix, structure, desc, taxonomy_linking))
-    return pd.DataFrame.from_records(proposals)
+            proposals.append(generate_proposals_for_table(table_ext_id, matrix, structure, desc, taxonomy_linking, datasets))
+    return pd.concat(proposals)
 
 
 def test_link_taxonomy():

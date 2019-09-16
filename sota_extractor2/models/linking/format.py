@@ -17,16 +17,18 @@ def format_to_regexp(format):
             regexp += float_value_nc.pattern
         else:
             regexp += float_value_re.pattern
-            ss = s.strip();
+            ss = s.strip()
             if ss == "100*x" or ss == "100x":
                 fn = lambda x: 100*x
             elif ss == "x/100":
                 fn = lambda x: x/100
-    return re.compile('^'+regexp+'$'), fn
+    #return re.compile('^'+regexp+'$'), fn
+    return re.compile('^' + regexp), fn
 
 def extract_value(cell_value, format):
+    cell_value = re.sub(r"\s+%", "%", cell_value)
     regexp, fn = format_to_regexp(format)
-    match = regexp.match(cell_value)
+    match = regexp.match(cell_value.strip())
     if match is None:
         return Decimal('NaN')
     return fn(Decimal(match.group(1)))

@@ -16,7 +16,8 @@ class CM:
 class Metrics:
     def __init__(self, df, experiment_name="unk"):
         # TODO fix this, it mask the fact that our model may return more values than it should for "model
-        self.df = df[~df["model_type_gold"].str.contains('not-present') | df["model_type_pred"].str.contains('model-best')]
+        #self.df = df[~df["model_type_gold"].str.contains('not-present') | df["model_type_pred"].str.contains('model-best')]
+        self.df = df[df["model_type_gold"].str.contains('model-best') | df["model_type_pred"].str.contains('model-best')]
         self.experiment_name = experiment_name
         self.metric_type = 'best'
 
@@ -29,9 +30,12 @@ class Metrics:
     def is_predicted_as_relevant(self, *col_names):
         np.all([self.df[f"{name}_pred"]])
 
-    def binary_confusion_matrix(self, *col_names):
-        relevant_pred = self.df["model_type_pred"].str.contains('model-best')
+    def binary_confusion_matrix(self, *col_names, best_only=True):
         relevant_gold = self.df["model_type_gold"].str.contains('model-best')
+        if best_only:
+            relevant_pred = self.df["model_type_pred"].str.contains('model-best')
+        else:
+            relevant_pred = relevant_gold
         # present_pred  = np.all([self.df[f"{name}_pred"] != 'not-present' for name in col_names], axis=0)
 
         pred_positive = relevant_pred  # & present_pred
@@ -45,18 +49,22 @@ class Metrics:
 
         return CM(tp=tp, tn=tn, fp=fp, fn=fn)
 
-    def calc_metric(self, metric_name, metric_fn, *col_names):
-        result = {f"{metric_name}_{col}": metric_fn(self.binary_confusion_matrix(col)) for col in col_names}
+    def calc_metric(self, metric_name, metric_fn, *col_names, best_only=True):
+        prefix = "best_" if best_only else ""
+        result = {f"{prefix}{metric_name}_{col}": metric_fn(self.binary_confusion_matrix(col, best_only=best_only)) for col in col_names}
         if len(col_names) > 1:
-            cm = self.binary_confusion_matrix(*col_names)
-            result[f"{metric_name}_all"] = metric_fn(cm)
-            result["best_TP_all"] = cm.tp
-            result["best_FP_all"] = cm.fp
+            cm = self.binary_confusion_matrix(*col_names, best_only=best_only)
+            result[f"{prefix}{metric_name}_all"] = metric_fn(cm)
+            result[f"{prefix}TP_all"] = cm.tp
+            result[f"{prefix}FP_all"] = cm.fp
 
             # Hack to present count on which precision is done
-            relevant_pred = self.df["model_type_pred"].str.contains('model-best')
             relevant_gold = self.df["model_type_gold"].str.contains('model-best')
-            result["best_count"] = (relevant_pred | relevant_gold).sum()
+            if best_only:
+                relevant_pred = self.df["model_type_pred"].str.contains('model-best')
+            else:
+                relevant_pred = relevant_gold
+            result[f"{prefix}count"] = (relevant_pred | relevant_gold).sum()
 
         return result
 
@@ -94,25 +102,28 @@ class Metrics:
         ax.set_ylabel("True")
         ax.set_xlabel("Predicted")
 
-    def precision(self, *col_names):
-        return self.calc_metric("best_precision", lambda cm: cm.tp / (cm.tp + cm.fp), *col_names)
+    def precision(self, *col_names, best_only=True):
+        return self.calc_metric("precision", lambda cm: cm.tp / (cm.tp + cm.fp), *col_names, best_only=best_only)
 
-    def recall(self, *col_names):
-        return self.calc_metric("best_recall", lambda cm: cm.tp / (cm.tp + cm.fn), *col_names)
+    def recall(self, *col_names, best_only=True):
+        return self.calc_metric("recall", lambda cm: cm.tp / (cm.tp + cm.fn), *col_names, best_only=best_only)
 
     def metrics(self):
-        cols = ["dataset", "metric", "task", "format", "parsed"]
+        cols = ["model_type", "dataset", "metric", "task", "parsed"]
         m = self.accuracy(*cols)
-        m.update(self.precision(*cols))
-        m.update(self.recall(*cols))
+        m.update(self.precision(*cols, best_only=True))
+        m.update(self.recall(*cols, best_only=True))
+
         m["experiment_name"] = self.experiment_name
         m["test_type"] = self.metric_type
-        return m
+
+        df = pd.DataFrame([(k,v) for k,v in m.items()], columns=["metric", "value"]).set_index("metric")
+        return df
 
     def errors(self, *col_names):
         cols = col_names
         if not cols:
-            cols = ["dataset", "metric", "task", "format", "parsed"]
+            cols = ["model_type", "dataset", "metric", "task", "parsed"]
         return self.df[~self.matching(*cols)]
 
     def show(self, df):

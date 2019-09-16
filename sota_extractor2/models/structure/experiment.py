@@ -147,6 +147,8 @@ class Experiment:
 
 
     def _transform_df(self, df):
+        df.cell_reference = (df.cell_reference != '').astype(str)
+        df.cell_styles = df.cell_styles.astype(str)
         if self.merge_type not in ["concat", "vote_maj", "vote_avg", "vote_max"]:
             raise Exception(f"merge_type must be one of concat, vote_maj, vote_avg, vote_max, but {self.merge_type} was given")
         if self.mark_this_paper and (self.merge_type != "concat" or self.this_paper):
@@ -166,32 +168,35 @@ class Experiment:
         elif self.mask:
             raise Exception("Masking with evidence_source='text' makes no sense")
 
+        duplicates_columns = ["text", "cell_content", "cell_type", "row_context", "col_context", "cell_reference", "cell_layout", "cell_styles"]
+        columns_to_keep = ["ext_id", "cell_content", "cell_type", "row_context", "col_context", "cell_reference", "cell_layout", "cell_styles"]
+
         if self.mark_this_paper:
-            df = df.groupby(by=["ext_id", "cell_content", "cell_type", "this_paper", "row_context", "col_context"]).text.apply(
+            df = df.groupby(by=columns_to_keep + ["this_paper"]).text.apply(
                 lambda x: "\n".join(x.values)).reset_index()
             this_paper_map = {
                 True: "this paper",
                 False: "other paper"
             }
             df.text = "xxfld 3 " + df.this_paper.apply(this_paper_map.get) + " " + df.text
-            df = df.groupby(by=["ext_id", "cell_content", "cell_type", "row_context", "col_context"]).text.apply(
+            df = df.groupby(by=columns_to_keep).text.apply(
                 lambda x: " ".join(x.values)).reset_index()
         elif not self.fixed_this_paper:
             if self.merge_fragments and self.merge_type == "concat":
-                df = df.groupby(by=["ext_id", "cell_content", "cell_type", "this_paper", "row_context", "col_context"]).text.apply(
+                df = df.groupby(by=columns_to_keep + ["this_paper"]).text.apply(
                     lambda x: "\n".join(x.values)).reset_index()
             if self.drop_duplicates:
-                df = df.drop_duplicates(["text", "cell_content", "cell_type", "row_context", "col_context"]).fillna("")
+                df = df.drop_duplicates(duplicates_columns).fillna("")
             if self.this_paper:
                 df = df[df.this_paper]
         else:
             if self.this_paper:
                 df = df[df.this_paper]
             if self.merge_fragments and self.merge_type == "concat":
-                df = df.groupby(by=["ext_id", "cell_content", "cell_type", "row_context", "col_context"]).text.apply(
+                df = df.groupby(by=columns_to_keep).text.apply(
                     lambda x: "\n".join(x.values)).reset_index()
             if self.drop_duplicates:
-                df = df.drop_duplicates(["text", "cell_content", "cell_type", "row_context", "col_context"]).fillna("")
+                df = df.drop_duplicates(duplicates_columns).fillna("")
 
         if self.split_btags:
             df["text"] = df["text"].replace(re.compile(r"(\</?b\>)"), r" \1 ")

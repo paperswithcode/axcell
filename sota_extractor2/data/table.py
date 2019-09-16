@@ -112,6 +112,14 @@ class Table:
             self.dataset_text = ''
             self.notes = ''
 
+    @property
+    def matrix(self):
+        return self.df.applymap(lambda x: x.value)
+
+    @property
+    def matrix_gold_tags(self):
+        return self.df.applymap(lambda x: x.gold_tags)
+
     @classmethod
     def from_file(cls, path, metadata, annotations=None, migrate=False, match_name=None, guessed_tags=None):
         path = Path(path)
