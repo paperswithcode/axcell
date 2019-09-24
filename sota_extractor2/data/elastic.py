@@ -1,3 +1,4 @@
+from bs4 import BeautifulSoup
 import pandas as pd
 import re
 
@@ -259,6 +260,11 @@ class Paper(Document):
     @classmethod
     def read_html(cls, file):
         return read_html(file)
+
+    @classmethod
+    def from_html(cls, html, paper_id):
+        soup = BeautifulSoup(html, "html.parser")
+        return cls.parse_html(soup, paper_id)
 
     @classmethod
     def parse_paper(cls, file, paper_id=None):

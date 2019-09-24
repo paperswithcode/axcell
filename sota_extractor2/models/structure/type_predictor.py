@@ -10,9 +10,11 @@ class TableTypePredictor(ULMFiT_SP):
 
 
     def predict(self, paper, tables):
-        df = pd.DataFrame({"caption": [table.caption for table in tables]})
+        if len(tables) == 0:
+            return []
+        df = pd.DataFrame({"caption": [table.caption if table.caption else "" for table in tables]})
         tl = TextList.from_df(df, cols="caption")
         self.learner.data.add_test(tl)
         preds, _ = self.learner.get_preds(DatasetType.Test, ordered=True)
         preds, _ = (preds.cpu() > self.threshold).max(dim=1)
-        return preds.numpy().astype(bool)
+        return preds.numpy().astype(bool).tolist()

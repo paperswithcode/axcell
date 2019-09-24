@@ -165,4 +165,7 @@ class CellEvidenceExtractor:
         setup_default_connection()
 
     def __call__(self, paper, tables, paper_limit=30, corpus_limit=10):
-        return pd.concat([evidence_for_table(paper, table, paper_limit, corpus_limit) for table in tables])
+        dfs = [evidence_for_table(paper, table, paper_limit, corpus_limit) for table in tables]
+        if len(dfs):
+            return pd.concat(dfs)
+        return pd.DataFrame()

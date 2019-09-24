@@ -62,11 +62,13 @@ class TableStructurePredictor(ULMFiT_SP):
         return TextList.from_df(df, cols=text_cols)
 
     def get_features(self, evidences):
-        tl = self.df2tl(evidences)
-        self.learner.data.add_test(tl)
+        if len(evidences):
+            tl = self.df2tl(evidences)
+            self.learner.data.add_test(tl)
 
-        preds, _ = self.learner.get_preds(DatasetType.Test, ordered=True)
-        return preds.cpu().numpy()
+            preds, _ = self.learner.get_preds(DatasetType.Test, ordered=True)
+            return preds.cpu().numpy()
+        return np.zeros((0, n_ulmfit_features))
 
     def to_tables(self, df, transpose=False):
         X_tables = []
@@ -162,12 +164,15 @@ class TableStructurePredictor(ULMFiT_SP):
         if ext_id in annotations:
             for _, entry in annotations[ext_id].iterrows():
                 structure.iloc[entry.row, entry.col] = entry.predicted_tags if entry.predicted_tags != "model-paper" else "model-best"
-        table = deepcopy(table)
+        table = deepcopy(table)  # fix deepcopy of DataFrame of dataclass instances
         table.set_tags(structure)
         return table
 
     # todo: take EvidenceExtractor in constructor
     def predict(self, paper, tables, raw_evidences):
-        tags = self.predict_tags(raw_evidences)
-        annotations = dict(list(tags.groupby(by=["paper", "table"])))
+        if len(raw_evidences):
+            tags = self.predict_tags(raw_evidences)
+            annotations = dict(list(tags.groupby(by=["paper", "table"])))
+        else:
+            annotations = {}  # just deep-copy all tables
         return [self.label_table(paper, table, annotations) for table in tables]

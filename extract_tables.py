@@ -335,9 +335,7 @@ def remove_footnotes(soup):
         elem.extract()
 
 
-def extract_tables(filename):
-    with open(filename, "rb") as f:
-        html = f.read()
+def extract_tables(html):
     soup = BeautifulSoup(html, "lxml", from_encoding="utf-8")
     set_ids_by_labels(soup)
     fix_span_tables(soup)
@@ -377,7 +375,9 @@ def extract_tables(filename):
     return data
 
 def extract_tables_cmd(filename, outdir):
-    tables = extract_tables(filename)
+    with open(filename, "rb") as f:
+        html = f.read()
+    tables = extract_tables(html)
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     save_tables(tables, outdir)

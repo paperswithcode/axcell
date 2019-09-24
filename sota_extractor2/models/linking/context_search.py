@@ -158,8 +158,8 @@ class ContextSearch:
         dss = set(find_datasets(context)) | set(abbrvs.keys())
         mss = set(find_metrics(context))
         dss -= mss
-        print("dss", dss)
-        print("mss", mss)
+        ###print("dss", dss)
+        ###print("mss", mss)
         self.compute_logprobs(dss, mss, abbrvs, noise, logprobs)
 
     def match(self, contexts):
@@ -177,9 +177,9 @@ class ContextSearch:
         cell = debug_info.cell
         key = (datasets, caption, query)
         cellstr = f"{cell.table_ext_id}/{cell.row}.{cell.col}"
-        print(f"[DEBUG] {cellstr}")
-        print("[DEBUG]", debug_info)
-        print("query:", query, caption)
+        ###print(f"[DEBUG] {cellstr}")
+        ###print("[DEBUG]", debug_info)
+        ###print("query:", query, caption)
         if key in self.queries:
             # print(self.queries[key])
             for context in key:
@@ -188,10 +188,10 @@ class ContextSearch:
                 dss = set(find_datasets(context)) | set(abbrvs.keys())
                 mss = set(find_metrics(context))
                 dss -= mss
-                print("dss", dss)
-                print("mss", mss)
+                ###print("dss", dss)
+                ###print("mss", mss)
 
-            print("Taking result from cache")
+            ###print("Taking result from cache")
             p = self.queries[key]
         else:
             dist = self.match(key)
@@ -212,7 +212,7 @@ class ContextSearch:
 
             self.queries[key] = p
 
-        print(p)
+        ###print(p)
 
         # error analysis only
         if self.debug_gold_df is not None:
