@@ -22,3 +22,7 @@ htmls_clean = arxiv/'htmls-clean'
 
 datasets = data/"datasets"
 datasets_structure = datasets/"structure"
+structure_models = datasets / "structure" / "models"
+
+linking_models = datasets / "linking" / "models"
+linking_data = datasets / "linking" / "data"

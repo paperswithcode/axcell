@@ -162,9 +162,10 @@ class Paper(Document):
         return paper
 
     @classmethod
-    def from_file(cls, path):
+    def from_file(cls, path, paper_id=None):
         path = Path(path)
-        paper_id = path.parent.name
+        if paper_id is None:
+            paper_id = path.parent.name
         with open(path, "rt") as f:
             json = f.read()
         return cls.from_json(json, paper_id)
@@ -186,6 +187,12 @@ class Paper(Document):
             return r
         else:
             return super().save(**kwargs)
+
+    def delete(self, **kwargs):
+        if hasattr(self, 'fragments'):
+            for f in self.fragments:
+                f.delete()
+        return super().delete(**kwargs)
 
     @classmethod
     def parse_html(cls, soup, paper_id):
@@ -254,9 +261,12 @@ class Paper(Document):
         return read_html(file)
 
     @classmethod
-    def parse_paper(cls, file):
+    def parse_paper(cls, file, paper_id=None):
+        file = Path(file)
         soup = cls.read_html(file)
-        return cls.parse_html(soup, file.stem)
+        if paper_id is None:
+            paper_id = file.stem
+        return cls.parse_html(soup, paper_id)
 
 
 class Author(InnerDoc):

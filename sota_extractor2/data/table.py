@@ -36,6 +36,12 @@ def extract_references(s):
     return text, refs
 
 
+empty_paren_re = re.compile(r"\(\s*\)|\[\s*\]")
+def remove_references(s):
+    s = reference_re.sub("", s)
+    return empty_paren_re.sub("", s)
+
+
 style_tags_re = re.compile(r"</?(bold|italic|red|green|blue)>")
 def remove_text_styles(s):
     return style_tags_re.sub("", s)
@@ -76,10 +82,7 @@ class Table:
             self.old_name = old_name
 
         if layout is not None:
-            #self.layout = layout
-            for r, row in layout.iterrows():
-                for c, cell in enumerate(row):
-                    self.df.iloc[r,c].layout = cell
+            self.set_layout(layout)
 
         if annotations is not None:
             self.gold_tags = annotations.gold_tags.strip()
@@ -97,9 +100,7 @@ class Table:
             elif gt_rows > 0:
                 gt_cols = len(tags[0])
                 if self.df.shape != (0,0) and self.df.shape == (gt_rows, gt_cols):
-                    for r, row in enumerate(tags):
-                        for c, cell in enumerate(row):
-                            self.df.iloc[r,c].gold_tags = cell.strip()
+                    self.set_tags(tags)
                 else:
                     print(f"Gold tags size mismatch: {gt_rows},{gt_cols} vs {self.df.shape}")
                 #    print(f"Gold tags size mismatch: {gt_rows},{gt_cols} vs {self.df.shape}")
@@ -112,13 +113,33 @@ class Table:
             self.dataset_text = ''
             self.notes = ''
 
+    def set_layout(self, layout):
+        for r, row in layout.iterrows():
+            for c, cell in enumerate(row):
+                self.df.iloc[r, c].layout = cell
+
+    def set_tags(self, tags):
+        for r, row in tags.iterrows():
+            for c, cell in enumerate(row):
+                # todo: change gold_tags to tags to avoid confusion
+                self.df.iloc[r,c].gold_tags = cell.strip()
+
     @property
     def matrix(self):
         return self.df.applymap(lambda x: x.value)
 
     @property
+    def matrix_layout(self):
+        return self.df.applymap(lambda x: x.layout)
+
+    @property
     def matrix_gold_tags(self):
         return self.df.applymap(lambda x: x.gold_tags)
+
+    # todo: remove gold_tags
+    @property
+    def matrix_tags(self):
+        return self.matrix_gold_tags
 
     @classmethod
     def from_file(cls, path, metadata, annotations=None, migrate=False, match_name=None, guessed_tags=None):
@@ -145,6 +166,14 @@ class Table:
 
     def display(self):
         display_table(self.df.applymap(lambda x: raw_value_to_html(x.raw_value)).values, self.df.applymap(lambda x: x.gold_tags).values, self.df.applymap(lambda x:x.layout).values)
+
+    def _save_df(self, df, filename):
+        df.to_csv(filename, header=None, index=None)
+
+    def save(self, path, table_name, layout_name):
+        path = Path(path)
+        self._save_df(self.df.applymap(lambda x: x.raw_value), path / table_name)
+        self._save_df(self.df.applymap(lambda x: x.layout), path / layout_name)
 
 #####
 # this code is used to migrate table annotations from

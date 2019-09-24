@@ -3,6 +3,11 @@ import numpy as np
 import pandas as pd
 from ...helpers.training import set_seed
 from ... import config
+from .type_predictor import TableTypePredictor
+from .structure_predictor import TableStructurePredictor
+
+__all__ = ["TableTypePredictor", "TableStructurePredictor"]
+
 
 def split_by_cell_content(df, seed=42, split_column="cell_content"):
     set_seed(seed, "val_split", quiet=True)
@@ -46,7 +51,7 @@ class DataBunch:
         self.test_df = pd.read_csv(config.datasets_structure/test_name)
         self.transform(self.normalize)
         self.transform(self.label)
-    
+
     def transform(self, fun):
         self.train_df = fun(self.train_df)
         self.test_df = fun(self.test_df)
@@ -58,7 +63,7 @@ class DataBunch:
         df = df.replace(re.compile(r"(^|[ ])\d\b"), " xxnum ")
         df = df.replace(re.compile(r"\bdata set\b"), " dataset ")
         return df
-    
+
     def label(self, df):
         df["label"] = df["cell_type"].apply(lambda x: self.label_map.get(x, 0))
         df["label"] = pd.Categorical(df["label"])

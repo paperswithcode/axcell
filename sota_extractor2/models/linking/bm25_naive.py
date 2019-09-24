@@ -259,16 +259,16 @@ def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonom
     return proposals
 
 
-def linked_proposals(paper_ext_id, paper, tables, structure_annotator, taxonomy_linking=MatchSearch(),
+def linked_proposals(paper_ext_id, paper, annotated_tables, taxonomy_linking=MatchSearch(),
                      dataset_extractor=None):
     #                     dataset_extractor=DatasetExtractor()):
     proposals = []
     datasets = dataset_extractor.from_paper(paper)
-    print(f"Extracted datasets: {datasets}")
-    for idx, table in enumerate(tables):
+    #print(f"Extracted datasets: {datasets}")
+    for idx, table in enumerate(annotated_tables):
         matrix = np.array(table.matrix)
-        structure, tags = structure_annotator(paper, table)
-        structure = np.array(structure)
+        structure = np.array(table.matrix_tags)
+        tags = 'sota'
         desc = table.caption
         table_ext_id = f"{paper_ext_id}/{table.name}"
 
