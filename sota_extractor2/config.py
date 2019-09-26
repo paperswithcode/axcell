@@ -24,5 +24,7 @@ datasets = data/"datasets"
 datasets_structure = datasets/"structure"
 structure_models = datasets / "structure" / "models"
 
+mocks = datasets / "mocks"
+
 linking_models = datasets / "linking" / "models"
 linking_data = datasets / "linking" / "data"

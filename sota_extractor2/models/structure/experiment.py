@@ -17,7 +17,8 @@ class Labels(Enum):
     PAPER_MODEL=2
     COMPETING_MODEL=3
     METRIC=4
-#    PARAMS=5
+    EMPTY=5
+
 
 label_map = {
     "dataset": Labels.DATASET.value,
@@ -221,7 +222,7 @@ class Experiment:
         r[f"{prefix}_accuracy"] = m["accuracy"]
         r[f"{prefix}_precision"] = m["precision"]
         r[f"{prefix}_recall"] = m["recall"]
-        r[f"{prefix}_cm"] = confusion_matrix(true_y, preds).tolist()
+        r[f"{prefix}_cm"] = confusion_matrix(true_y, preds, labels=[x.value for x in Labels]).tolist()
         self.update_results(**r)
 
     def evaluate(self, model, train_df, valid_df, test_df):
@@ -254,10 +255,12 @@ class Experiment:
 
     def _plot_confusion_matrix(self, cm, normalize, fmt=None):
         if normalize:
-            cm = cm / cm.sum(axis=1)[:, None]
+            s = cm.sum(axis=1)[:, None]
+            s[s == 0] = 1
+            cm = cm / s
         if fmt is None:
             fmt = "0.2f" if normalize else "d"
-        target_names = ["OTHER", "DATASET", "MODEL (paper)", "MODEL (comp.)", "METRIC"] #, "PARAMS"]
+        target_names = ["OTHER", "DATASET", "MODEL (paper)", "MODEL (comp.)", "METRIC", "EMPTY"]
         df_cm = pd.DataFrame(cm, index=[i for i in target_names],
                              columns=[i for i in target_names])
         plt.figure(figsize=(10, 10))

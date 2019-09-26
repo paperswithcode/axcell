@@ -169,6 +169,11 @@ def handle_pm(value):
                 pass
             # %%
 
+
+proposal_columns = ['dataset', 'metric', 'task', 'format', 'raw_value', 'model', 'model_type', 'cell_ext_id',
+                    'confidence', 'parsed', 'struct_model_type', 'struct_dataset']
+
+
 def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonomy_linking, datasets):
     # %%
     # Proposal generation
@@ -249,9 +254,8 @@ def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonom
             yield linked
 
     # specify columns in case there's no proposal
-    columns = ['dataset', 'metric', 'task', 'format', 'raw_value', 'model', 'model_type', 'cell_ext_id', 'confidence', 'parsed',
-               'struct_model_type', 'struct_dataset']
-    proposals = pd.DataFrame.from_records(list(linked_proposals(proposals)), columns=columns)
+
+    proposals = pd.DataFrame.from_records(list(linked_proposals(proposals)), columns=proposal_columns)
 
     if len(proposals):
         proposals["parsed"]=proposals[["raw_value", "format"]].apply(
@@ -274,7 +278,9 @@ def linked_proposals(paper_ext_id, paper, annotated_tables, taxonomy_linking=Mat
 
         if 'sota' in tags and 'no_sota_records' not in tags: # only parse tables that are marked as sota
             proposals.append(generate_proposals_for_table(table_ext_id, matrix, structure, desc, taxonomy_linking, datasets))
-    return pd.concat(proposals)
+    if len(proposals):
+        return pd.concat(proposals)
+    return pd.DataFrame(columns=proposal_columns)
 
 
 def test_link_taxonomy():

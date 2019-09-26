@@ -67,10 +67,9 @@ class BestResultFilter(ProposalsFilter):
             print(proposals)
 
         if self.context == "paper":
-            context_column = proposals.index.to_series().str.split('/', expand=True).loc[:, 0]
+            context_column = proposals.index.to_series().str.split('/', expand=False).apply(lambda x: x[0])
         else:
-            context_column = proposals.index.to_series().str.split('/', expand=True).loc[:, 0] + "/" + \
-                             proposals.index.to_series().str.split('/', expand=True).loc[:, 1]
+            context_column = proposals.index.to_series().str.split('/', expand=False).apply(lambda x: x[0] + "/" + x[1])
 
         for key_all, group in proposals[(proposals.model_type == 'model-best') & ~proposals.parsed.isna()].groupby(
                 by=["dataset", "metric", "task", context_column]):

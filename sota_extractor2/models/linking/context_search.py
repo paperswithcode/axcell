@@ -9,19 +9,21 @@ import re
 import pandas as pd
 import numpy as np
 
+from sota_extractor2.pipeline_logger import pipeline_logger
+
 metrics = {
     'BLEU': ['bleu'],
     'BLEU score': ['bleu'],
-    'Character Error Rate': ['cer'],
+    'Character Error Rate': ['cer', 'cers'],
     'Error': ['error'],
     'Exact Match Ratio': ['exact match'],
     'F1': ['f1', 'f1 score'],
     'F1 score': ['f1', 'f1 score'],
     'MAP': ['map'],
-    'Percentage error': ['wer', 'per', 'word error rate', 'word error rates', 'phoneme error rates',
+    'Percentage error': ['wer', 'per', 'wers', 'pers', 'word error rate', 'word error rates', 'phoneme error rates',
                          'phoneme error rate', 'error', 'error rate', 'error rates'],
-    'Word Error Rate': ['wer', 'word error rate', 'word error rates', 'error', 'error rate', 'error rates'],
-    'Word Error Rate (WER)': ['wer', 'word error rate', 'word error rates', 'error', 'error rate', 'error rates'],
+    'Word Error Rate': ['wer', 'wers', 'word error rate', 'word error rates', 'error', 'error rate', 'error rates'],
+    'Word Error Rate (WER)': ['wer', 'wers', 'word error rate', 'word error rates', 'error', 'error rate', 'error rates'],
     'ROUGE-1': ['r1'],
     'ROUGE-2': ['r2'],
     'ROUGE-F': ['rf'],
@@ -173,10 +175,10 @@ class ContextSearch:
         return zip(keys, probs)
 
     def __call__(self, query, datasets, caption, debug_info=None):
+        cellstr = debug_info.cell.cell_ext_id
+        pipeline_logger("linking::taxonomy_linking::call", ext_id=cellstr, query=query, datasets=datasets, caption=caption)
         datasets = " ".join(datasets)
-        cell = debug_info.cell
         key = (datasets, caption, query)
-        cellstr = f"{cell.table_ext_id}/{cell.row}.{cell.col}"
         ###print(f"[DEBUG] {cellstr}")
         ###print("[DEBUG]", debug_info)
         ###print("query:", query, caption)
@@ -226,6 +228,7 @@ class ContextSearch:
             else:
                 print("[EA] No gold sota record found for the cell")
         # end of error analysis only
+        pipeline_logger("linking::taxonomy_linking::topk", ext_id=cellstr, topk=p)
         return p.head(1)
 
 

@@ -3,10 +3,10 @@ import numpy as np
 import pandas as pd
 from ...helpers.training import set_seed
 from ... import config
-from .type_predictor import TableTypePredictor
+from .type_predictor import TableTypePredictor, TableType
 from .structure_predictor import TableStructurePredictor
 
-__all__ = ["TableTypePredictor", "TableStructurePredictor"]
+__all__ = ["TableType", "TableTypePredictor", "TableStructurePredictor"]
 
 
 def split_by_cell_content(df, seed=42, split_column="cell_content"):

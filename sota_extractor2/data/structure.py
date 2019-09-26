@@ -99,6 +99,10 @@ def fix_reference_hightlight(s):
     return partial_highlight_re.sub("xxref-", s)
 
 
+evidence_columns = ["text_sha1", "text_highlited", "text", "header", "cell_type", "cell_content", "cell_reference",
+                    "cell_layout", "cell_styles", "this_paper", "row", "col", "row_context", "col_context", "ext_id"]
+
+
 def create_evidence_records(textfrag, cell, paper, table):
     for text_highlited in textfrag.meta['highlight']['text']:
         text_highlited = fix_reference_hightlight(fix_refs(text_highlited))
@@ -141,15 +145,19 @@ def evidence_for_table(paper, table, paper_limit, corpus_limit):
                                            row=cell.row, col=cell.col, paper_limit=paper_limit, corpus_limit=corpus_limit)
             for record in create_evidence_records(evidence, cell, paper=paper, table=table)
     ]
-    df = pd.DataFrame.from_records(records)
+    df = pd.DataFrame.from_records(records, columns=evidence_columns)
     return df
 
 
 def prepare_data(paper, tables, csv_path, limit_type='interesting'):
-    df = pd.concat([evidence_for_table(paper, table,
+    data = [evidence_for_table(paper, table,
                                        paper_limit=100,
                                        corpus_limit=20,
-                                       limit_type=limit_type) for table in progress_bar(tables)])
+                                       limit_type=limit_type) for table in progress_bar(tables)]
+    if len(data):
+        df = pd.concat(data)
+    else:
+        df = pd.DataFrame(columns=evidence_columns)
     #moved to experiment preprocessing
     #df = df.drop_duplicates(
     #    ["cell_content", "text_highlited", "cell_type", "this_paper"])
@@ -168,4 +176,4 @@ class CellEvidenceExtractor:
         dfs = [evidence_for_table(paper, table, paper_limit, corpus_limit) for table in tables]
         if len(dfs):
             return pd.concat(dfs)
-        return pd.DataFrame()
+        return pd.DataFrame(columns=evidence_columns)

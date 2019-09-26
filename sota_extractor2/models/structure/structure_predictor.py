@@ -6,7 +6,8 @@ import pickle
 from .experiment import Experiment, Labels, label_map
 import re
 from .ulmfit import ULMFiT_SP
-from copy import deepcopy
+from ...pipeline_logger import pipeline_logger
+
 
 def load_crf(path):
     with open(path, "rb") as f:
@@ -28,7 +29,10 @@ n_layout_features = 16
 n_features = n_ulmfit_features + n_fasttext_features + n_layout_features
 n_classes = 5
 
+
 class TableStructurePredictor(ULMFiT_SP):
+    step = "structure_prediction"
+
     def __init__(self, path, file, crf_path=None, crf_model="crf.pkl",
                  sp_path=None, sp_model="spm.model", sp_vocab="spm.vocab"):
         super().__init__(path, file, sp_path, sp_model, sp_vocab)
@@ -164,15 +168,18 @@ class TableStructurePredictor(ULMFiT_SP):
         if ext_id in annotations:
             for _, entry in annotations[ext_id].iterrows():
                 structure.iloc[entry.row, entry.col] = entry.predicted_tags if entry.predicted_tags != "model-paper" else "model-best"
-        table = deepcopy(table)  # fix deepcopy of DataFrame of dataclass instances
         table.set_tags(structure)
         return table
 
     # todo: take EvidenceExtractor in constructor
-    def predict(self, paper, tables, raw_evidences):
+    def label_tables(self, paper, tables, raw_evidences):
+        pipeline_logger(f"{TableStructurePredictor.step}::label_tables", paper=paper, tables=tables, raw_evidences=raw_evidences)
         if len(raw_evidences):
             tags = self.predict_tags(raw_evidences)
             annotations = dict(list(tags.groupby(by=["paper", "table"])))
         else:
             annotations = {}  # just deep-copy all tables
-        return [self.label_table(paper, table, annotations) for table in tables]
+        pipeline_logger(f"{TableStructurePredictor.step}::annotations", paper=paper, tables=tables, annotations=annotations)
+        for table in tables:
+            self.label_table(paper, table, annotations)
+        pipeline_logger(f"{TableStructurePredictor.step}::tables_labelled", paper=paper, tables=tables)
