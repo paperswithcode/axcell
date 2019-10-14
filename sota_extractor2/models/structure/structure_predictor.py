@@ -7,6 +7,7 @@ from .experiment import Experiment, Labels, label_map
 import re
 from .ulmfit import ULMFiT_SP
 from ...pipeline_logger import pipeline_logger
+from copy import deepcopy
 
 
 def load_crf(path):
@@ -37,6 +38,7 @@ class TableStructurePredictor(ULMFiT_SP):
                  sp_path=None, sp_model="spm.model", sp_vocab="spm.vocab"):
         super().__init__(path, file, sp_path, sp_model, sp_vocab)
 
+        self._full_learner = deepcopy(self.learner)
         self.learner.model = cut_ulmfit_head(self.learner.model)
         self.learner.loss_func = None
         crf_path = Path(path) if crf_path is None else Path(crf_path)
@@ -155,6 +157,7 @@ class TableStructurePredictor(ULMFiT_SP):
 
     def predict_tags(self, raw_evidences):
         evidences, evidences_num = self.keep_alphacells(self.preprocess_df(raw_evidences))
+        pipeline_logger(f"{TableStructurePredictor.step}::evidences_split", evidences=evidences, evidences_num=evidences_num)
         features = self.get_features(evidences)
         df = self.merge_all_with_preds(evidences, evidences_num, features)
         tables, contents, ids = self.to_tables(df)
@@ -162,17 +165,19 @@ class TableStructurePredictor(ULMFiT_SP):
         return self.format_predictions(preds, ids)
 
     # todo: consider adding sota/ablation information
-    def label_table(self, paper, table, annotations):
+    def label_table(self, paper, table, annotations, in_place):
         structure = pd.DataFrame().reindex_like(table.matrix).fillna("")
         ext_id = (paper.paper_id, table.name)
         if ext_id in annotations:
             for _, entry in annotations[ext_id].iterrows():
                 structure.iloc[entry.row, entry.col] = entry.predicted_tags if entry.predicted_tags != "model-paper" else "model-best"
+        if not in_place:
+            table = deepcopy(table)
         table.set_tags(structure)
         return table
 
     # todo: take EvidenceExtractor in constructor
-    def label_tables(self, paper, tables, raw_evidences):
+    def label_tables(self, paper, tables, raw_evidences, in_place=False):
         pipeline_logger(f"{TableStructurePredictor.step}::label_tables", paper=paper, tables=tables, raw_evidences=raw_evidences)
         if len(raw_evidences):
             tags = self.predict_tags(raw_evidences)
@@ -180,6 +185,6 @@ class TableStructurePredictor(ULMFiT_SP):
         else:
             annotations = {}  # just deep-copy all tables
         pipeline_logger(f"{TableStructurePredictor.step}::annotations", paper=paper, tables=tables, annotations=annotations)
-        for table in tables:
-            self.label_table(paper, table, annotations)
-        pipeline_logger(f"{TableStructurePredictor.step}::tables_labelled", paper=paper, tables=tables)
+        labeled = [self.label_table(paper, table, annotations, in_place) for table in tables]
+        pipeline_logger(f"{TableStructurePredictor.step}::tables_labeled", paper=paper, labeled_tables=labeled)
+        return labeled

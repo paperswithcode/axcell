@@ -13,9 +13,9 @@ class TableType(Enum):
     IRRELEVANT = 2
 
 
-def multipreds2preds(preds, treshhold=0.5):
+def multipreds2preds(preds, threshold=0.5):
     bs = preds.shape[0]
-    return torch.cat([(preds>treshhold).float(), preds.new_zeros((bs,1))+0.8], dim=-1).argmax(dim=-1)
+    return torch.cat([preds, preds.new_full((bs,1), threshold)], dim=-1).argmax(dim=-1)
 
 
 class TableTypePredictor(ULMFiT_SP):
@@ -34,6 +34,8 @@ class TableTypePredictor(ULMFiT_SP):
             tl = TextList.from_df(df, cols="caption")
             self.learner.data.add_test(tl)
             preds, _ = self.learner.get_preds(DatasetType.Test, ordered=True)
-            predictions = [TableType(x) for x in multipreds2preds(preds).cpu().numpy()]
+            pipeline_logger(f"{TableTypePredictor.step}::multiclass_predicted", paper=paper, tables=tables,
+                            threshold=self.threshold, predictions=preds.cpu().numpy())
+            predictions = [TableType(x) for x in multipreds2preds(preds, self.threshold).cpu().numpy()]
         pipeline_logger(f"{TableTypePredictor.step}::predicted", paper=paper, tables=tables, predictions=predictions)
         return predictions

@@ -6,6 +6,8 @@ import re
 from dataclasses import dataclass, field
 from typing import List
 from ..helpers.jupyter import display_table
+from copy import deepcopy
+
 
 @dataclass
 class Cell:
@@ -68,15 +70,18 @@ def read_str_csv(filename):
     return df
 
 
+class CellDataFrame(pd.DataFrame):
+    """We subclass pandas DataFrame in order to make deepcopy recursively copy cells"""
+    def __deepcopy__(self, memodict={}):
+        return CellDataFrame(self.applymap(lambda cell: deepcopy(cell, memodict)))
 
 
 class Table:
     def __init__(self, name, df, layout, caption=None, figure_id=None, annotations=None, migrate=False, old_name=None, guessed_tags=None):
         self.name = name
-        self.df = df
         self.caption = caption
         self.figure_id = figure_id
-        self.df = df.applymap(str2cell)
+        self.df = CellDataFrame(df.applymap(str2cell))
 
         if migrate:
             self.old_name = old_name

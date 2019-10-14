@@ -28,6 +28,12 @@ class Paper:
         else:
             self.gold_tags = ''
 
+    def table_by_name(self, name):
+        for table in self.tables:
+            if table.name == name:
+                return table
+        return None
+
 
 # todo: make sure multithreading/processing won't cause collisions
 def random_id():

@@ -1,21 +1,54 @@
+from ...pipeline_logger import pipeline_logger
+import pandas as pd
+
+
 class ProposalsFilter:
+    step = "proposals_filtering"
+
+    def _filter(self, proposals):
+        raise NotImplementedError
+
+    def filter(self, proposals):
+        which, reason = self._filter(proposals)
+        self.log(proposals=proposals, which=which, reason=reason)
+        return which, reason
+
     def __rshift__(self, other):
         return CompoundFilter([self, other])
 
+    def __call__(self, proposals):
+        which, reason = self.filter(proposals)
+        return proposals[which]
+
+    def log(self, **kwargs):
+        pipeline_logger(f"filtering::{self.step}::filtered", **kwargs)
+
 
 class CompoundFilter(ProposalsFilter):
+    step = "compound_filtering"
+
     def __init__(self, filters):
         self.filters = filters
 
-    def __call__(self, df, all_proposals=None):
+    def _filter(self, proposals):
+        agg_which = pd.Series(data=True, index=proposals.index)
+        agg_reason = pd.Series(data="", index=proposals.index)
+
         for f in self.filters:
-            df = f(df, all_proposals)
-        return df
+            which, reason = f.filter(proposals)
+            agg_reason[agg_which & ~which] = reason
+            agg_which &= which
+            proposals = proposals[which]
+        return agg_which, agg_reason[~agg_which]
 
 
 class NopFilter(ProposalsFilter):
-    def __call__(self, df, all_proposals=None):
-        return df
+    step = "nop_filtering"
+
+    def _filter(self, proposals):
+        which = pd.Series(data=True, index=proposals.index)
+        reason = pd.Series()
+        return which, reason
 
 
 # filter proposals for which structure prediction
@@ -24,47 +57,46 @@ class NopFilter(ProposalsFilter):
 # this filter could be applied before taxonomy linking,
 # but to make error analysis easier it's applied after
 class StructurePredictionFilter(ProposalsFilter):
-    def __call__(self, proposals, all_proposals=None):
-        if all_proposals is not None:
-            indices = proposals.index
-            all_proposals.loc[indices[proposals.struct_dataset.str.contains('train')], "reason"] = "train-dataset"
-            all_proposals.loc[indices[proposals.struct_dataset.str.contains('dev')], "reason"] = "dev-dataset"
-            all_proposals.loc[indices[proposals.struct_model_type == ''], "reason"] = "empty-model-type"
+    step = "structure_filtering"
 
-        return proposals[(proposals.struct_model_type != '') \
+    def _filter(self, proposals):
+        which = (proposals.struct_model_type != '') \
                          & ~proposals.struct_dataset.str.contains('dev') \
-                         & ~proposals.struct_dataset.str.contains('train')]
+                         & ~proposals.struct_dataset.str.contains('train')
+        reason = pd.Series(data="", index=proposals.index)
+        reason[proposals.struct_dataset.str.contains('train')] = "train-dataset"
+        reason[proposals.struct_dataset.str.contains('dev')] = "dev-dataset"
+        reason[proposals.struct_model_type == ''] = "empty-model-type"
+
+        return which, reason[~which]
+
 
 class ConfidenceFilter(ProposalsFilter):
+    step = "confidence_filtering"
+
     def __init__(self, confidence=-1):
         self.confidence = confidence
 
-    def __call__(self, proposals, all_proposals=None):
-        #         proposals.loc[proposals.debug_reason.isna() & (proposals.confidence <= self.confidence), "debug_reason"] = \
-        #             f"confidence<{self.confidence:.02f}"
-        #         return proposals
+    def _filter(self, proposals):
         which = proposals.confidence > self.confidence
-        if all_proposals is not None:
-            all_proposals.loc[proposals.index[~which], "reason"] = \
-                "confidence " + proposals[~which].confidence.round(2).astype(str) + f" <= {self.confidence}"
-        return proposals[which]
+        reason = "confidence " + proposals[~which].confidence.round(2).astype(str) + f" <= {self.confidence}"
+        return which, reason[~which]
+
+    def log(self, **kwargs):
+        super().log(**kwargs, confidence=self.confidence)
 
 
-# does not filter per se, but changes model-best -> model-paper
-# for inferior models
 class BestResultFilter(ProposalsFilter):
-    def __init__(self, taxonomy, context="paper", log=False):
+    step = "best_result_filtering"
+
+    def __init__(self, taxonomy, context="paper"):
         assert context in ["paper", "table"]
         self.metrics_info = taxonomy.metrics_info
         self.context = context
-        self.log = log
 
-    def __call__(self, proposals, all_proposals=None):
-        proposals = proposals.copy(deep=True)
+    def _filter(self, proposals):
+        reason = pd.Series(data="", index=proposals.index)
         indices = []
-        if self.log:
-            print("filtering")
-            print(proposals)
 
         if self.context == "paper":
             context_column = proposals.index.to_series().str.split('/', expand=False).apply(lambda x: x[0])
@@ -90,18 +122,11 @@ class BestResultFilter(ProposalsFilter):
             else:
                 index = group.parsed.idxmin()
             indices.append(index)
-            if all_proposals is not None:
-                all_proposals.loc[group.index[group.index != index], "reason"] = "replaced by " + str(index)
+            reason[group.index[group.index != index]] = "replaced by " + str(index)
 
-        if self.log:
-            print("after filtering")
-            print(proposals.loc[indices])
+        reason[proposals.struct_model_type == 'model-competing'] = "model-competing"
+        which = proposals.index.to_series().isin(indices)
+        return which, reason[~which]
 
-        which = (proposals.model_type == 'model-best') & ~(proposals.index.isin(indices))
-        proposals.loc[which, "model_type"] = 'model-paper'
-
-        # proposals.loc[(proposals.model_type == 'model-best') & ~(proposals.index.isin(indices)), "model_type"] = 'not-present'
-        # proposals.model_type = 'model-paper'
-        # proposals.loc[indices, "model_type"] = 'model-best'
-
-        return proposals  # .loc[indices]
+    def log(self, **kwargs):
+        super().log(**kwargs, context=self.context)
