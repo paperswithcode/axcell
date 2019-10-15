@@ -38,6 +38,13 @@ metrics = {
     'NIQE': ['niqe'],
     'BLINDS-II': ['blinds-ii'],
     'FSIM': ['fsim'],
+    # SEMANTIC SEGMENTATION
+    'Mean iOU': ['miou', 'mean iou', 'mean iu'],
+    'Pixel Accuracy': ['pixel accuracy', 'pixel acc', 'pixel acc.'],
+    'Class iOU': ['class iou', 'iou cla.'],
+    'Category iOU': ['cat iou', 'iou cat.'],
+    'Class iiOU': ['class iiou', 'iiou cla.'],
+    'Category iiOU': ['cat iiou', 'iiou cat.'],
 }
 
 # datasets[taxonomy name] is a list of normalized evidences for taxonomy name
@@ -112,7 +119,15 @@ datasets = {
     'RainSynAll100': ['rainsynall100'],
     'SPA-DATA': ['spa-data'],
     'LasVR': ['lasvar'],
-
+    # SEMANTIC SEGMENTATION
+    'PASCAL VOC 2012': ['voc 2012', 'pascal voc 2012'],
+    'ADE20K': ['ade20k'],
+    'ImageNet': ['imagenet'],
+    'Cityscapes': ['cityscapes'],
+    'PASCAL-Context': ['pascal-context'],
+    'PASCAL-Person-Part': ['pascal-person-part'],
+    'ParseNet': ['parsenet'],
+    'LIP': ['lip'],
 }
 
 datasets = {k:(v+['test']) for k,v in datasets.items()}
