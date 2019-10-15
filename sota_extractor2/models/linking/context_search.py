@@ -28,7 +28,16 @@ metrics = {
     'ROUGE-2': ['r2'],
     'ROUGE-F': ['rf'],
     'Precision': ['precision'],
-    'Recall': ['recall']
+    'Recall': ['recall'],
+    # RAIN REMOVAL
+    'PSNR': ['psnr', 'psnr (db)', 'mean psnr],
+    'SSIM': ['ssim'],
+    'UQI': ['uqi'],
+    'VIF': ['vif'],
+    'SSEQ': ['sseq'],
+    'NIQE': ['niqe'],
+    'BLINDS-II': ['blinds-ii'],
+    'FSIM': ['fsim'],
 }
 
 # datasets[taxonomy name] is a list of normalized evidences for taxonomy name
@@ -84,6 +93,26 @@ datasets = {
                               "wealth"],
     'VoxForge European': ["vox forge european", "vox forge", "european", "vox", "forge", "eu"],
     'VoxForge Indian': ["vox forge indian", "vox forge", "indian", "vox", "forge"],
+    # RAIN REMOVAL
+    'Raindrop': ['raindrop'],
+    'Rain100H': ['rain100h'],
+    'Rain100L': ['rain100l'],
+    'Rain12': ['rain12'],
+    'Rain800': ['rain800'],
+    'Rain1400': ['rain1400'], 
+    'Real Rain': ['real rain'],    
+    'Rain in Surveillance': ['ris'],   
+    'Rain in Driving': ['rid'],   
+    'DID-MDN': ['did-mdn'],
+    'SOTS': ['sots'],
+    'Test 1': ['test 1'],
+    'RainSynLight25': ['rainsynlight25'],
+    'RainSynComplex25': ['rainsyncomplex25'],    
+    'NTURain': ['nturain'],    
+    'RainSynAll100': ['rainsynall100'],
+    'SPA-DATA': ['spa-data'],
+    'LasVR': ['lasvar'],
+
 }
 
 datasets = {k:(v+['test']) for k,v in datasets.items()}
