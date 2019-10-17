@@ -30,7 +30,7 @@ metrics = {
     'Precision': ['precision'],
     'Recall': ['recall'],
     # RAIN REMOVAL
-    'PSNR': ['psnr', 'psnr (db)', 'mean psnr],
+    'PSNR': ['psnr', 'psnr (db)', 'mean psnr'],
     'SSIM': ['ssim'],
     'UQI': ['uqi'],
     'VIF': ['vif'],
