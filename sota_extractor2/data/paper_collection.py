@@ -73,8 +73,12 @@ def _load_tables(path, annotations, jobs, migrate):
     return {f.parent.name: tbls for f, tbls in zip(files, tables)}
 
 
-def _load_annotated_papers(path):
-    dump = load_gql_dump(path, compressed=path.suffix == ".gz")["allPapers"]
+def _load_annotated_papers(data_or_path):
+    if isinstance(data_or_path, dict):
+        compressed = False
+    else:
+        compressed = data_or_path.suffix == ".gz"
+    dump = load_gql_dump(data_or_path, compressed=compressed)["allPapers"]
     annotations = {remove_arxiv_version(a.arxiv_id): a for a in dump}
     annotations.update({a.arxiv_id: a for a in dump})
     return annotations

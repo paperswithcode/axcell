@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 from dataclasses import dataclass, field
 from typing import List
-from ..helpers.jupyter import display_table
+from ..helpers.jupyter import display_html, table_to_html
 from copy import deepcopy
 
 
@@ -20,6 +20,7 @@ class Cell:
 
 reference_re = re.compile(r"<ref id='([^']*)'>(.*?)</ref>")
 num_re = re.compile(r"^\d+$")
+
 
 def extract_references(s):
     parts = reference_re.split(s)
@@ -89,10 +90,16 @@ class Table:
         if layout is not None:
             self.set_layout(layout)
 
+        self._set_annotations(annotations, migrate=migrate, old_name=old_name, guessed_tags=guessed_tags)
+
+    def _set_annotations(self, annotations, migrate=False, old_name=None, guessed_tags=None):
         if annotations is not None:
             self.gold_tags = annotations.gold_tags.strip()
             self.dataset_text = annotations.dataset_text.strip()
             self.notes = annotations.notes.strip()
+
+            sota_records = json.loads(annotations.cells_sota_records)
+
             if guessed_tags is not None:
                 tags = guessed_tags.values
             else:
@@ -117,6 +124,16 @@ class Table:
             self.gold_tags = ''
             self.dataset_text = ''
             self.notes = ''
+            sota_records = {}
+
+        sota_records = pd.DataFrame(sota_records.values(), index=sota_records.keys(),
+                                    columns=['task', 'dataset', 'metric', 'format', 'model', 'value'])
+        sota_records.index = self.name + "/" + sota_records.index
+        sota_records.index.rename("cell_ext_id", inplace=True)
+        sota_records.rename(columns={"value": "raw_value"}, inplace=True)
+
+        self.sota_records = sota_records.replace("", np.nan).dropna(subset=["model", "metric", "task", "dataset"])
+
 
     def set_layout(self, layout):
         for r, row in layout.iterrows():
@@ -124,7 +141,7 @@ class Table:
                 self.df.iloc[r, c].layout = cell
 
     def set_tags(self, tags):
-        for r, row in tags.iterrows():
+        for r, row in enumerate(tags):
             for c, cell in enumerate(row):
                 # todo: change gold_tags to tags to avoid confusion
                 self.df.iloc[r,c].gold_tags = cell.strip()
@@ -132,6 +149,10 @@ class Table:
     @property
     def matrix(self):
         return self.df.applymap(lambda x: x.value)
+
+    @property
+    def matrix_html(self):
+        return self.df.applymap(lambda x: raw_value_to_html(x.raw_value))
 
     @property
     def matrix_layout(self):
@@ -169,8 +190,11 @@ class Table:
             table_ann = None
         return cls(metadata['filename'], df, layout, metadata.get('caption'), metadata.get('figure_id'), table_ann, migrate, match_name, guessed_tags)
 
+    def _repr_html_(self):
+        return table_to_html(self.matrix_html.values, self.matrix_tags.values, self.matrix_layout.values)
+
     def display(self):
-        display_table(self.df.applymap(lambda x: raw_value_to_html(x.raw_value)).values, self.df.applymap(lambda x: x.gold_tags).values, self.df.applymap(lambda x:x.layout).values)
+        display_html(self._repr_html_())
 
     def _save_df(self, df, filename):
         df.to_csv(filename, header=None, index=None)

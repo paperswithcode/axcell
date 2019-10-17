@@ -6,6 +6,7 @@ from copy import deepcopy
 import pickle
 
 
+
 class BaseLogger:
     def __init__(self, pipeline_logger, pattern=".*"):
         pipeline_logger.register(pattern, self)
@@ -179,6 +180,12 @@ class FilteringEvaluator:
     def on_filtered(self, step, proposals, which, reason, **kwargs):
         _, filter_step, _ = step.split('::')
         if filter_step != "compound_filtering":
-            self.proposals[filter_step] = pd.concat(self.proposals.get(filter_step, []) + [proposals])
-            self.which[filter_step] = pd.concat(self.which.get(filter_step, []) + [which])
+            if filter_step in self.proposals:
+                self.proposals[filter_step] = pd.concat([self.proposals[filter_step], proposals])
+                self.which[filter_step] = pd.concat([self.which[filter_step], which])
+            else:
+                self.proposals[filter_step] = proposals
+                self.which[filter_step] = which
             self.reason = self.reason.append(reason)
+
+

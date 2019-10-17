@@ -1,5 +1,13 @@
 from ...pipeline_logger import pipeline_logger
 import pandas as pd
+from enum import Enum
+
+
+class FilterOutReason(Enum):
+    TrainDataset = "train-dataset"
+    DevDataset = "dev-dataset"
+    EmptyModelName = "empty-model-name"
+    ModelCompeting = "model-competing"
 
 
 class ProposalsFilter:

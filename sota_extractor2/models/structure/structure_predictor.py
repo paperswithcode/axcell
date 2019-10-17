@@ -173,7 +173,7 @@ class TableStructurePredictor(ULMFiT_SP):
                 structure.iloc[entry.row, entry.col] = entry.predicted_tags if entry.predicted_tags != "model-paper" else "model-best"
         if not in_place:
             table = deepcopy(table)
-        table.set_tags(structure)
+        table.set_tags(structure.values)
         return table
 
     # todo: take EvidenceExtractor in constructor
