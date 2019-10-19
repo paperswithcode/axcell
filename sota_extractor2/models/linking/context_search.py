@@ -8,6 +8,8 @@ from scipy.special import softmax
 import re
 import pandas as pd
 import numpy as np
+import ahocorasick
+from numba import njit, typed, types
 
 from sota_extractor2.pipeline_logger import pipeline_logger
 
@@ -136,32 +138,86 @@ datasets.update({
     'LibriSpeech dev-other': ['libri speech dev other', 'libri speech', 'dev', 'other', 'dev other', 'development', 'noisy'],
 })
 
-escaped_ws_re = re.compile(r'\\\s+')
-def name_to_re(name):
-    return re.compile(r'(?:^|\s+)' + escaped_ws_re.sub(r'\\s*', re.escape(name.strip())) + r'(?:$|\s+)', re.I)
+# escaped_ws_re = re.compile(r'\\\s+')
+# def name_to_re(name):
+#     return re.compile(r'(?:^|\s+)' + escaped_ws_re.sub(r'\\s*', re.escape(name.strip())) + r'(?:$|\s+)', re.I)
 
 #all_datasets = set(k for k,v in merged_p.items() if k != '' and not re.match("^\d+$", k) and v.get('NOMATCH', 0.0) < 0.9)
 all_datasets = set(y for x in datasets.values() for y in x)
 all_metrics = set(y for x in metrics.values() for y in x)
 #all_metrics = set(metrics_p.keys())
 
-all_datasets_re = {x:name_to_re(x) for x in all_datasets}
-all_metrics_re = {x:name_to_re(x) for x in all_metrics}
+# all_datasets_re = {x:name_to_re(x) for x in all_datasets}
+# all_metrics_re = {x:name_to_re(x) for x in all_metrics}
 #all_datasets = set(x for v in merged_p.values() for x in v)
 
-def find_names(text, names_re):
-    return set(name for name, name_re in names_re.items() if name_re.search(text))
+# def find_names(text, names_re):
+#     return set(name for name, name_re in names_re.items() if name_re.search(text))
+
+
+def make_trie(names):
+    trie = ahocorasick.Automaton()
+    for name in names:
+        norm = name.replace(" ", "")
+        trie.add_word(norm, (len(norm), name))
+    trie.make_automaton()
+    return trie
+
+
+single_letter_re = re.compile(r"\b\w\b")
+init_letter_re = re.compile(r"\b\w")
+end_letter_re = re.compile(r"\w\b")
+letter_re = re.compile(r"\w")
+
+
+def find_names(text, names_trie):
+    text = text.lower()
+    profile = letter_re.sub("i", text)
+    profile = init_letter_re.sub("b", profile)
+    profile = end_letter_re.sub("e", profile)
+    profile = single_letter_re.sub("x", profile)
+    text = text.replace(" ", "")
+    profile = profile.replace(" ", "")
+    s = set()
+    for (end, (l, word)) in names_trie.iter(text):
+        if profile[end] in ['e', 'x'] and profile[end - l + 1] in ['b', 'x']:
+            s.add(word)
+    return s
+
+
+all_datasets_trie = make_trie(all_datasets)
+all_metrics_trie = make_trie(all_metrics)
+
 
 def find_datasets(text):
-    return find_names(text, all_datasets_re)
+    return find_names(text, all_datasets_trie)
 
 def find_metrics(text):
-    return find_names(text, all_metrics_re)
+    return find_names(text, all_metrics_trie)
 
 def dummy_item(reason):
     return pd.DataFrame(dict(dataset=[reason], task=[reason], metric=[reason], evidence=[""], confidence=[0.0]))
 
 
+
+@njit
+def compute_logprobs(dataset_metric, reverse_merged_p, reverse_metrics_p, dss, mss, noise, logprobs):
+    empty = typed.Dict.empty(types.unicode_type, types.float64)
+    for i, (dataset, metric) in enumerate(dataset_metric):
+        logprob = 0.0
+        short_probs = reverse_merged_p.get(dataset, empty)
+        met_probs = reverse_metrics_p.get(metric, empty)
+        for ds in dss:
+            #                 for abbrv, long_form in abbrvs.items():
+            #                     if ds == abbrv:
+            #                         ds = long_form
+            #                         break
+            # if merged_p[ds].get('NOMATCH', 0.0) < 0.5:
+            logprob += np.log(noise * 0.001 + (1 - noise) * short_probs.get(ds, 0.0))
+        for ms in mss:
+            logprob += np.log(noise * 0.01 + (1 - noise) * met_probs.get(ms, 0.0))
+        logprobs[i] += logprob
+        #logprobs[(dataset, metric)] = logprob
 
 
 class ContextSearch:
@@ -174,29 +230,28 @@ class ContextSearch:
 
         self.queries = {}
         self.taxonomy = taxonomy
+        self._dataset_metric = typed.List()
+        for t in self.taxonomy.taxonomy:
+            self._dataset_metric.append(t)
         self.extract_acronyms = AcronymExtractor()
         self.context_noise = context_noise
-        self.reverse_merged_p = reverse_probs(merged_p)
-        self.reverse_metrics_p = reverse_probs(metrics_p)
+        self.reverse_merged_p = self._numba_update_nested_dict(reverse_probs(merged_p))
+        self.reverse_metrics_p = self._numba_update_nested_dict(reverse_probs(metrics_p))
         self.debug_gold_df = debug_gold_df
 
-    def compute_logprobs(self, dss, mss, abbrvs, noise, logprobs):
-        for dataset, metric in self.taxonomy.taxonomy:
-            logprob = logprobs.get((dataset, metric), 1.0)
-            short_probs = self.reverse_merged_p.get(dataset, {})
-            met_probs = self.reverse_metrics_p.get(metric, {})
-            for ds in dss:
-                ds = normalize_cell(ds)
-                #                 for abbrv, long_form in abbrvs.items():
-                #                     if ds == abbrv:
-                #                         ds = long_form
-                #                         break
-                # if merged_p[ds].get('NOMATCH', 0.0) < 0.5:
-                logprob += np.log(noise * 0.001 + (1 - noise) * short_probs.get(ds, 0.0))
-            for ms in mss:
-                ms = normalize_cell(ms)
-                logprob += np.log(noise * 0.01 + (1 - noise) * met_probs.get(ms, 0.0))
-            logprobs[(dataset, metric)] = logprob
+    def _numba_update_nested_dict(self, nested):
+        d = typed.Dict()
+        for key, dct in nested.items():
+            d2 = typed.Dict()
+            d2.update(dct)
+            d[key] = d2
+        return d
+
+    def _numba_extend_list(self, lst):
+        l = typed.List.empty_list(types.unicode_type)
+        for x in lst:
+            l.append(x)
+        return l
 
     def compute_context_logprobs(self, context, noise, logprobs):
         abbrvs = self.extract_acronyms(context)
@@ -204,17 +259,24 @@ class ContextSearch:
         dss = set(find_datasets(context)) | set(abbrvs.keys())
         mss = set(find_metrics(context))
         dss -= mss
+        dss = [normalize_cell(ds) for ds in dss]
+        mss = [normalize_cell(ms) for ms in mss]
         ###print("dss", dss)
         ###print("mss", mss)
-        self.compute_logprobs(dss, mss, abbrvs, noise, logprobs)
+        dss = self._numba_extend_list(dss)
+        mss = self._numba_extend_list(mss)
+        compute_logprobs(self._dataset_metric, self.reverse_merged_p, self.reverse_metrics_p, dss, mss, noise, logprobs)
 
     def match(self, contexts):
         assert len(contexts) == len(self.context_noise)
-        context_logprobs = {}
+        n = len(self._dataset_metric)
+        context_logprobs = np.ones(n)
 
         for context, noise in zip(contexts, self.context_noise):
             self.compute_context_logprobs(context, noise, context_logprobs)
-        keys, logprobs = zip(*context_logprobs.items())
+        keys = self.taxonomy.taxonomy.keys()
+        logprobs = context_logprobs
+        #keys, logprobs = zip(*context_logprobs.items())
         probs = softmax(np.array(logprobs))
         return zip(keys, probs)
 
