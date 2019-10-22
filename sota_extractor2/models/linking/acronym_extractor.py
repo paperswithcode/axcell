@@ -1,6 +1,6 @@
 import spacy
 from scispacy.abbreviation import AbbreviationDetector
-from .utils import normalize_cell, normalize_dataset
+from .utils import normalize_cell, normalize_dataset_ws
 
 class AcronymExtractor:
     def __init__(self):
@@ -14,7 +14,7 @@ class AcronymExtractor:
         abbrvs = {}
         for abrv in doc._.abbreviations:
             # abbrvs.setdefault(normalize_cell(str(abrv)), Counter())[str(abrv._.long_form)] += 1
-            norm = normalize_cell(normalize_dataset(str(abrv)))
+            norm = normalize_cell(normalize_dataset_ws(str(abrv)))
             if norm != '':
-                abbrvs[norm] = normalize_cell(normalize_dataset(str(abrv._.long_form)))
+                abbrvs[norm] = normalize_cell(normalize_dataset_ws(str(abrv._.long_form)))
         return abbrvs

@@ -30,7 +30,7 @@ refs_re = re.compile(r"(xxtable-)?xxanchor-[^ ]*|xxref-[^ ]*")
 def remove_references(s):
     return refs_re.sub("", s)
 
-def normalize_dataset2(name):
+def normalize_dataset_ws(name):
     name = remove_references(name)
     name = hyphens_re.sub(" ", name)
     name = year_2k_re.sub(r"\1", name)

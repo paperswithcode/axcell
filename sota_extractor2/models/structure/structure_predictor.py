@@ -122,6 +122,8 @@ class TableStructurePredictor(ULMFiT_SP):
         return X_tables, C_tables, ids
 
     def merge_with_preds(self, df, preds):
+        if not len(df):
+            return []
         ext_id = df.ext_id.str.split("/", expand=True)
         return list(zip(ext_id[0] + "/" + ext_id[1], ext_id[2].astype(int), ext_id[3].astype(int),
                         preds, df.text, df.cell_content, df.cell_layout, df.cell_styles, df.cell_reference, df.label))

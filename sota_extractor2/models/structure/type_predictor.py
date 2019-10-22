@@ -30,8 +30,10 @@ class TableTypePredictor(ULMFiT_SP):
         if len(tables) == 0:
             predictions = []
         else:
-            df = pd.DataFrame({"caption": [table.caption if table.caption else "" for table in tables]})
-            tl = TextList.from_df(df, cols="caption")
+            column = "caption"
+            df = pd.DataFrame({column: [table.caption if table.caption else "Table" for table in tables]})
+            inputs = df.iloc[:, df_names_to_idx(column, df)]
+            tl = TextList(items=inputs.values[:, 0], path='.', inner_df=df, processor=None)
             self.learner.data.add_test(tl)
             preds, _ = self.learner.get_preds(DatasetType.Test, ordered=True)
             pipeline_logger(f"{TableTypePredictor.step}::multiclass_predicted", paper=paper, tables=tables,

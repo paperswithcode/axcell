@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+from collections import OrderedDict
 
 
 
@@ -14,7 +15,7 @@ class Taxonomy:
 
     def _read_taxonomy(self, path):
         records = self._read_json(path)
-        return {(x['dataset'], x['metric']): x for x in records}
+        return [(r["task"], r["dataset"], r["metric"]) for r in records]
 
     def _read_metrics_info(self, path):
         records = self._read_json(path)

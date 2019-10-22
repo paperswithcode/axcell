@@ -91,10 +91,11 @@ class TableExplanation:
 class Explainer:
     _sota_record_columns = ['task', 'dataset', 'metric', 'format', 'model', 'model_type', 'raw_value', 'parsed']
 
-    def __init__(self, pipeline_logger, paper_collection):
+    def __init__(self, pipeline_logger, paper_collection, gold_sota_records=None):
         self.paper_collection = paper_collection
+        self.gold_sota_records = gold_sota_records
         self.spe = StructurePredictionEvaluator(pipeline_logger, paper_collection)
-        self.le = LinkerEvaluator(pipeline_logger, paper_collection)
+        self.le = LinkerEvaluator(pipeline_logger)
         self.fe = FilteringEvaluator(pipeline_logger)
 
     def explain(self, paper, cell_ext_id):
@@ -179,11 +180,20 @@ class Explainer:
             print(", ".join(missing))
         papers = [paper for paper in papers.values() if paper is not None]
 
-        if not len(papers):
+        # if not len(papers):
+        #     gold_sota_records = pd.DataFrame(columns=self._sota_record_columns)
+        #     gold_sota_records.index.rename("cell_ext_id", inplace=True)
+        # else:
+        #     gold_sota_records = pd.concat([self._get_sota_records(paper) for paper in papers])
+        if self.gold_sota_records is None:
             gold_sota_records = pd.DataFrame(columns=self._sota_record_columns)
             gold_sota_records.index.rename("cell_ext_id", inplace=True)
         else:
-            gold_sota_records = pd.concat([self._get_sota_records(paper) for paper in papers])
+
+            gold_sota_records = self.gold_sota_records
+            which = gold_sota_records.index.to_series().str.split("/", expand=True)[0]\
+                .isin([paper.paper_id for paper in papers])
+            gold_sota_records = gold_sota_records[which]
 
         df = gold_sota_records.merge(proposals, 'outer', left_index=True, right_index=True, suffixes=['_gold', '_pred'])
         df = df.reindex(sorted(df.columns), axis=1)

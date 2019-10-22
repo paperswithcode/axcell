@@ -144,7 +144,7 @@ class StructurePredictionEvaluator:
 
 
 class LinkerEvaluator:
-    def __init__(self, pipeline_logger, pc):
+    def __init__(self, pipeline_logger):
         pipeline_logger.register("linking::call", self.on_before_linking)
         pipeline_logger.register("linking::taxonomy_linking::call", self.on_before_taxonomy)
         pipeline_logger.register("linking::taxonomy_linking::topk", self.on_taxonomy_topk)
