@@ -86,8 +86,8 @@ class ConfidenceFilter(ProposalsFilter):
         self.confidence = confidence
 
     def _filter(self, proposals):
-        which = proposals.confidence > self.confidence
-        reason = "confidence " + proposals[~which].confidence.round(2).astype(str) + f" <= {self.confidence}"
+        which = proposals.confidence >= self.confidence
+        reason = "confidence " + proposals[~which].confidence.round(2).astype(str) + f" < {self.confidence}"
         return which, reason[~which]
 
     def log(self, **kwargs):

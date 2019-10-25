@@ -15,7 +15,7 @@ def remove_parens(text):
     return parens_re.sub("", text)
 
 def clean_name(name):
-    return remove_parens(name.replace('\xa0', ' ').strip()).strip()
+    return remove_parens(unidecode(name).strip()).strip()
 
 def clean_cell(cell):
     return strip_nonalnum(clean_name(cell))

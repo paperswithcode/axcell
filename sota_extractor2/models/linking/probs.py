@@ -1,6 +1,19 @@
 from collections import Counter
 
+
 def get_probs(occurrences):
+    """
+    Computes conditional probabilities based on frequency of co-occurrences
+
+    Parameters
+    ----------
+    occurrences: occurences[x][y] number of times with (X=x and Y=y)
+
+    Returns
+    -------
+    probs : probs[x][y] = Pr(Y=y | X=x)
+    reverse_probs : reverse_probs[y][x] = Pr(X=x | Y=y)
+    """
     probs = {}
     reverse_probs = {}
     y_occ = Counter()
@@ -27,7 +40,7 @@ def reverse_probs(probs):
 
     Returns
     -------
-    reverse : reverse[y][x] = Pr(X=x | Y=y) assuming X and Y are uniform
+    reverse : reverse[y][x] = Pr(X=x | Y=y) assuming X is uniform
     """
     reverse = {}
     for x, probs_x in probs.items():

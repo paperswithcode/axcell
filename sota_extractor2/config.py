@@ -28,3 +28,5 @@ mocks = datasets / "mocks"
 
 linking_models = datasets / "linking" / "models"
 linking_data = datasets / "linking" / "data"
+
+autodict = linking_data / "autodict"

@@ -12,7 +12,10 @@ def format_to_regexp(format):
     fn=lambda x: x
     for i, s in enumerate(placeholders):
         if i % 2 == 0:
-            regexp += escaped_whitespace_re.sub(r"\\s+", re.escape(s))
+            if s.strip() == "":
+                regexp += escaped_whitespace_re.sub(r"\\s+", re.escape(s))
+            else:
+                regexp += escaped_whitespace_re.sub(r"\\s*", re.escape(s))
         elif s.strip() == "":
             regexp += float_value_nc.pattern
         else:
@@ -29,6 +32,6 @@ def extract_value(cell_value, format):
     cell_value = re.sub(r"\s+%", "%", cell_value)
     regexp, fn = format_to_regexp(format)
     match = regexp.match(cell_value.strip())
-    if match is None:
+    if match is None or not len(match.groups()):
         return Decimal('NaN')
     return fn(Decimal(match.group(1)))

@@ -3,7 +3,7 @@ from collections import Counter
 
 from sota_extractor2.models.linking.acronym_extractor import AcronymExtractor
 from sota_extractor2.models.linking.probs import get_probs, reverse_probs
-from sota_extractor2.models.linking.utils import normalize_dataset_ws, normalize_cell, normalize_cell_ws
+from sota_extractor2.models.linking.utils import normalize_dataset, normalize_cell, normalize_cell_ws
 from scipy.special import softmax
 import re
 import pandas as pd
@@ -108,16 +108,16 @@ datasets = {
     'Rain100L': ['rain100l'],
     'Rain12': ['rain12'],
     'Rain800': ['rain800'],
-    'Rain1400': ['rain1400'], 
-    'Real Rain': ['real rain'],    
-    'Rain in Surveillance': ['ris'],   
-    'Rain in Driving': ['rid'],   
+    'Rain1400': ['rain1400'],
+    'Real Rain': ['real rain'],
+    'Rain in Surveillance': ['ris'],
+    'Rain in Driving': ['rid'],
     'DID-MDN': ['did-mdn'],
     'SOTS': ['sots'],
     'Test 1': ['test 1'],
     'RainSynLight25': ['rainsynlight25'],
-    'RainSynComplex25': ['rainsyncomplex25'],    
-    'NTURain': ['nturain'],    
+    'RainSynComplex25': ['rainsyncomplex25'],
+    'NTURain': ['nturain'],
     'RainSynAll100': ['rainsynall100'],
     'SPA-DATA': ['spa-data'],
     'LasVR': ['lasvar'],
@@ -143,8 +143,8 @@ datasets.update({
 #     return re.compile(r'(?:^|\s+)' + escaped_ws_re.sub(r'\\s*', re.escape(name.strip())) + r'(?:$|\s+)', re.I)
 
 #all_datasets = set(k for k,v in merged_p.items() if k != '' and not re.match("^\d+$", k) and v.get('NOMATCH', 0.0) < 0.9)
-all_datasets = set(y for x in datasets.values() for y in x)
-all_metrics = set(y for x in metrics.values() for y in x)
+all_datasets = set(normalize_cell_ws(normalize_dataset(y)) for x in datasets.values() for y in x)
+all_metrics = set(normalize_cell_ws(y) for x in metrics.values() for y in x)
 #all_metrics = set(metrics_p.keys())
 
 # all_datasets_re = {x:name_to_re(x) for x in all_datasets}
@@ -201,7 +201,7 @@ def dummy_item(reason):
 
 
 @njit
-def compute_logprobs(taxonomy, reverse_merged_p, reverse_metrics_p, dss, mss, noise, logprobs):
+def compute_logprobs(taxonomy, reverse_merged_p, reverse_metrics_p, dss, mss, noise, ms_noise, ds_pb, ms_pb, logprobs):
     empty = typed.Dict.empty(types.unicode_type, types.float64)
     for i, (task, dataset, metric) in enumerate(taxonomy):
         logprob = 0.0
@@ -213,19 +213,19 @@ def compute_logprobs(taxonomy, reverse_merged_p, reverse_metrics_p, dss, mss, no
             #                         ds = long_form
             #                         break
             # if merged_p[ds].get('NOMATCH', 0.0) < 0.5:
-            logprob += np.log(noise * 0.001 + (1 - noise) * short_probs.get(ds, 0.0))
+            logprob += np.log(noise * ds_pb + (1 - noise) * short_probs.get(ds, 0.0))
         for ms in mss:
-            logprob += np.log(noise * 0.01 + (1 - noise) * met_probs.get(ms, 0.0))
+            logprob += np.log(ms_noise * ms_pb + (1 - ms_noise) * met_probs.get(ms, 0.0))
         logprobs[i] += logprob
         #logprobs[(dataset, metric)] = logprob
 
 
 class ContextSearch:
-    def __init__(self, taxonomy, context_noise=(0.5, 0.2, 0.1), debug_gold_df=None):
+    def __init__(self, taxonomy, context_noise=(0.5, 0.2, 0.1), metrics_noise=None, ds_pb=0.001, ms_pb=0.01, debug_gold_df=None):
         merged_p = \
-        get_probs({k: Counter([normalize_cell(normalize_dataset_ws(x)) for x in v]) for k, v in datasets.items()})[1]
+        get_probs({k: Counter([normalize_cell(normalize_dataset(x)) for x in v]) for k, v in datasets.items()})[1]
         metrics_p = \
-        get_probs({k: Counter([normalize_cell(normalize_dataset_ws(x)) for x in v]) for k, v in metrics.items()})[1]
+        get_probs({k: Counter([normalize_cell(normalize_dataset(x)) for x in v]) for k, v in metrics.items()})[1]
 
 
         self.queries = {}
@@ -235,6 +235,9 @@ class ContextSearch:
             self._taxonomy.append(t)
         self.extract_acronyms = AcronymExtractor()
         self.context_noise = context_noise
+        self.metrics_noise = metrics_noise if metrics_noise else context_noise
+        self.ds_pb = ds_pb
+        self.ms_pb = ms_pb
         self.reverse_merged_p = self._numba_update_nested_dict(reverse_probs(merged_p))
         self.reverse_metrics_p = self._numba_update_nested_dict(reverse_probs(metrics_p))
         self.debug_gold_df = debug_gold_df
@@ -253,10 +256,10 @@ class ContextSearch:
             l.append(x)
         return l
 
-    def compute_context_logprobs(self, context, noise, logprobs):
+    def compute_context_logprobs(self, context, noise, ms_noise, logprobs):
         context = context or ""
         abbrvs = self.extract_acronyms(context)
-        context = normalize_cell_ws(normalize_dataset_ws(context))
+        context = normalize_cell_ws(normalize_dataset(context))
         dss = set(find_datasets(context)) | set(abbrvs.keys())
         mss = set(find_metrics(context))
         dss -= mss
@@ -266,15 +269,16 @@ class ContextSearch:
         ###print("mss", mss)
         dss = self._numba_extend_list(dss)
         mss = self._numba_extend_list(mss)
-        compute_logprobs(self._taxonomy, self.reverse_merged_p, self.reverse_metrics_p, dss, mss, noise, logprobs)
+        compute_logprobs(self._taxonomy, self.reverse_merged_p, self.reverse_metrics_p,
+                         dss, mss, noise, ms_noise, self.ds_pb, self.ms_pb, logprobs)
 
     def match(self, contexts):
         assert len(contexts) == len(self.context_noise)
         n = len(self._taxonomy)
         context_logprobs = np.zeros(n)
 
-        for context, noise in zip(contexts, self.context_noise):
-            self.compute_context_logprobs(context, noise, context_logprobs)
+        for context, noise, ms_noise in zip(contexts, self.context_noise, self.metrics_noise):
+            self.compute_context_logprobs(context, noise, ms_noise, context_logprobs)
         keys = self.taxonomy.taxonomy
         logprobs = context_logprobs
         #keys, logprobs = zip(*context_logprobs.items())
@@ -293,7 +297,7 @@ class ContextSearch:
             # print(self.queries[key])
             # for context in key:
             #     abbrvs = self.extract_acronyms(context)
-            #     context = normalize_cell_ws(normalize_dataset_ws(context))
+            #     context = normalize_cell_ws(normalize_dataset(context))
             #     dss = set(find_datasets(context)) | set(abbrvs.keys())
             #     mss = set(find_metrics(context))
             #     dss -= mss
@@ -353,4 +357,4 @@ class DatasetExtractor:
         return self(text)
 
     def __call__(self, text):
-        return find_datasets(normalize_cell_ws(normalize_dataset_ws(text)))
+        return find_datasets(normalize_cell_ws(normalize_dataset(text)))

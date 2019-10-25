@@ -1,5 +1,6 @@
 import pandas as pd
 from django.db import connection
+from IPython.core.display import display
 
 from sota_extractor2.models.linking.metrics import Metrics
 from sota_extractor2.models.linking.format import extract_value
@@ -35,6 +36,13 @@ def fetch_gold_sota_records():
     WHERE parser = 'latexml' and dataset != '' and task != '' and metric != '' and model != '';""", limit=None)
     gold_sota_records["parsed"] = gold_sota_records[["raw_value", "format"]].apply(
         lambda row: float(extract_value(row.raw_value, row.format)), axis=1)
+
+    unparsed = gold_sota_records[gold_sota_records["parsed"] != gold_sota_records["parsed"]]
+    if len(unparsed):
+        print("Found unparsed values")
+        display(unparsed.style.format({'cell_ext_id':
+            lambda x: f'<a target="labeler" href="http://10.0.1.145:8001/paper/{x}">{x}</a>'})
+        )
 
     gold_sota_records = gold_sota_records[gold_sota_records["parsed"] == gold_sota_records["parsed"]]
 

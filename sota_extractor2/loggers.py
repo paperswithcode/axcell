@@ -151,6 +151,7 @@ class LinkerEvaluator:
         pipeline_logger.register("linking::linked", self.on_after_linking)
         self.proposals = {}
         self.topk = {}
+        self.queries = {}
 
     def on_before_linking(self, step, paper, tables):
         pass
@@ -159,7 +160,7 @@ class LinkerEvaluator:
         self.proposals[paper.paper_id] = proposals.copy(deep=True)
 
     def on_before_taxonomy(self, step, ext_id, query, datasets, caption):
-        pass
+        self.queries[ext_id] = (query, datasets, caption)
 
     def on_taxonomy_topk(self, step, ext_id, topk):
         paper_id, table_name, rc = ext_id.split('/')
