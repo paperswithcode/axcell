@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 from ..helpers.jupyter import table_to_html
 from sota_extractor2.models.linking.format import extract_value
+from sota_extractor2.helpers.optimize import optimize_filters
 
 
 class Reason:
@@ -203,3 +204,7 @@ class Explainer:
 
         metrics = Metrics(df, experiment_name=experiment_name)
         return metrics
+
+    def optimize_filters(self, metrics_info):
+        results = optimize_filters(self, metrics_info)
+        return results

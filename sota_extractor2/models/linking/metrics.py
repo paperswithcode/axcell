@@ -8,10 +8,10 @@ from IPython.display import HTML, display
 
 @dataclass
 class CM:
-    tp: float
-    fn: float
-    fp: float
-    tn: float
+    tp: float = 0
+    fn: float = 0
+    fp: float = 0
+    tn: float = 0
 
 class Metrics:
     def __init__(self, df, experiment_name="unk"):
