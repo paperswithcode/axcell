@@ -20,7 +20,7 @@ def consume_cells(table):
         for col_id, cell in enumerate(row):
             vals = [
                 remove_text_styles(remove_references(cell.raw_value)),
-                "",
+                cell.gold_tags,
                 cell.refs[0] if cell.refs else "",
                 cell.layout,
                 bool(style_tags_re.search(cell.raw_value))
@@ -103,13 +103,13 @@ evidence_columns = ["text_sha1", "text_highlited", "text", "header", "cell_type"
                     "cell_layout", "cell_styles", "this_paper", "row", "col", "row_context", "col_context", "ext_id"]
 
 
-def create_evidence_records(textfrag, cell, paper, table):
+def create_evidence_records(textfrag, cell, paper_id, table):
     for text_highlited in textfrag.meta['highlight']['text']:
         text_highlited = fix_reference_hightlight(fix_refs(text_highlited))
         text = highlight_re.sub("", text_highlited)
         text_sha1 = hashlib.sha1(text.encode("utf-8")).hexdigest()
 
-        cell_ext_id = f"{paper.paper_id}/{table.name}/{cell.row}/{cell.col}"
+        cell_ext_id = f"{paper_id}/{table.name}/{cell.row}/{cell.col}"
 
         yield {"text_sha1": text_sha1,
                "text_highlited": text_highlited,
@@ -120,7 +120,7 @@ def create_evidence_records(textfrag, cell, paper, table):
                "cell_reference": cell.vals[2],
                "cell_layout": cell.vals[3],
                "cell_styles": cell.vals[4],
-               "this_paper": textfrag.paper_id == paper.paper_id,
+               "this_paper": textfrag.paper_id == paper_id,
                "row": cell.row,
                "col": cell.col,
                "row_context": " border ".join([str(s) for s in table.matrix.values[cell.row]]),
@@ -137,23 +137,22 @@ def filter_cells(cell_content):
 interesting_types = ["model-paper", "model-best", "model-competing", "dataset", "dataset-sub",  "dataset-task"]
 
 
-def evidence_for_table(paper, table, paper_limit, corpus_limit):
+def evidence_for_table(paper_id, table, paper_limit, corpus_limit):
     records = [
         record
             for cell in consume_cells(table)
-            for evidence in fetch_evidence(cell.vals[0], cell.vals[2], paper_id=paper.paper_id, table_name=table.name,
+            for evidence in fetch_evidence(cell.vals[0], cell.vals[2], paper_id=paper_id, table_name=table.name,
                                            row=cell.row, col=cell.col, paper_limit=paper_limit, corpus_limit=corpus_limit)
-            for record in create_evidence_records(evidence, cell, paper=paper, table=table)
+            for record in create_evidence_records(evidence, cell, paper_id=paper_id, table=table)
     ]
     df = pd.DataFrame.from_records(records, columns=evidence_columns)
     return df
 
 
-def prepare_data(paper, tables, csv_path, limit_type='interesting'):
-    data = [evidence_for_table(paper, table,
+def prepare_data(tables, csv_path):
+    data = [evidence_for_table(table.paper_id, table,
                                        paper_limit=100,
-                                       corpus_limit=20,
-                                       limit_type=limit_type) for table in progress_bar(tables)]
+                                       corpus_limit=20) for table in progress_bar(tables)]
     if len(data):
         df = pd.concat(data)
     else:
@@ -173,7 +172,7 @@ class CellEvidenceExtractor:
         setup_default_connection()
 
     def __call__(self, paper, tables, paper_limit=30, corpus_limit=10):
-        dfs = [evidence_for_table(paper, table, paper_limit, corpus_limit) for table in tables]
+        dfs = [evidence_for_table(paper.paper_id, table, paper_limit, corpus_limit) for table in tables]
         if len(dfs):
             return pd.concat(dfs)
         return pd.DataFrame(columns=evidence_columns)

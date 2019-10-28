@@ -93,6 +93,8 @@ class PaperCollection(UserList):
         path = Path(path)
         if annotations_path is None:
             annotations_path = path / "structure-annotations.json"
+        else:
+            annotations_path = Path(annotations_path)
         if load_texts:
             texts = _load_texts(path, jobs)
         else:

@@ -25,6 +25,7 @@ label_map = {
     "dataset-sub": Labels.DATASET.value,
     "model-paper": Labels.PAPER_MODEL.value,
     "model-best": Labels.PAPER_MODEL.value,
+    "model-ensemble": Labels.PAPER_MODEL.value,
     "model-competing": Labels.COMPETING_MODEL.value,
     "dataset-metric": Labels.METRIC.value,
 #    "model-params": Labels.PARAMS.value
