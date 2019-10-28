@@ -17,13 +17,15 @@ class Labels(Enum):
     PAPER_MODEL=2
     COMPETING_MODEL=3
     METRIC=4
-#    PARAMS=5
+    EMPTY=5
+
 
 label_map = {
     "dataset": Labels.DATASET.value,
     "dataset-sub": Labels.DATASET.value,
     "model-paper": Labels.PAPER_MODEL.value,
     "model-best": Labels.PAPER_MODEL.value,
+    "model-ensemble": Labels.PAPER_MODEL.value,
     "model-competing": Labels.COMPETING_MODEL.value,
     "dataset-metric": Labels.METRIC.value,
 #    "model-params": Labels.PARAMS.value
@@ -147,6 +149,8 @@ class Experiment:
 
 
     def _transform_df(self, df):
+        df.cell_reference = (df.cell_reference != '').astype(str)
+        df.cell_styles = df.cell_styles.astype(str)
         if self.merge_type not in ["concat", "vote_maj", "vote_avg", "vote_max"]:
             raise Exception(f"merge_type must be one of concat, vote_maj, vote_avg, vote_max, but {self.merge_type} was given")
         if self.mark_this_paper and (self.merge_type != "concat" or self.this_paper):
@@ -166,32 +170,35 @@ class Experiment:
         elif self.mask:
             raise Exception("Masking with evidence_source='text' makes no sense")
 
+        duplicates_columns = ["text", "cell_content", "cell_type", "row_context", "col_context", "cell_reference", "cell_layout", "cell_styles"]
+        columns_to_keep = ["ext_id", "cell_content", "cell_type", "row_context", "col_context", "cell_reference", "cell_layout", "cell_styles"]
+
         if self.mark_this_paper:
-            df = df.groupby(by=["ext_id", "cell_content", "cell_type", "this_paper", "row_context", "col_context"]).text.apply(
+            df = df.groupby(by=columns_to_keep + ["this_paper"]).text.apply(
                 lambda x: "\n".join(x.values)).reset_index()
             this_paper_map = {
                 True: "this paper",
                 False: "other paper"
             }
             df.text = "xxfld 3 " + df.this_paper.apply(this_paper_map.get) + " " + df.text
-            df = df.groupby(by=["ext_id", "cell_content", "cell_type", "row_context", "col_context"]).text.apply(
+            df = df.groupby(by=columns_to_keep).text.apply(
                 lambda x: " ".join(x.values)).reset_index()
         elif not self.fixed_this_paper:
             if self.merge_fragments and self.merge_type == "concat":
-                df = df.groupby(by=["ext_id", "cell_content", "cell_type", "this_paper", "row_context", "col_context"]).text.apply(
+                df = df.groupby(by=columns_to_keep + ["this_paper"]).text.apply(
                     lambda x: "\n".join(x.values)).reset_index()
             if self.drop_duplicates:
-                df = df.drop_duplicates(["text", "cell_content", "cell_type", "row_context", "col_context"]).fillna("")
+                df = df.drop_duplicates(duplicates_columns).fillna("")
             if self.this_paper:
                 df = df[df.this_paper]
         else:
             if self.this_paper:
                 df = df[df.this_paper]
             if self.merge_fragments and self.merge_type == "concat":
-                df = df.groupby(by=["ext_id", "cell_content", "cell_type", "row_context", "col_context"]).text.apply(
+                df = df.groupby(by=columns_to_keep).text.apply(
                     lambda x: "\n".join(x.values)).reset_index()
             if self.drop_duplicates:
-                df = df.drop_duplicates(["text", "cell_content", "cell_type", "row_context", "col_context"]).fillna("")
+                df = df.drop_duplicates(duplicates_columns).fillna("")
 
         if self.split_btags:
             df["text"] = df["text"].replace(re.compile(r"(\</?b\>)"), r" \1 ")
@@ -216,7 +223,7 @@ class Experiment:
         r[f"{prefix}_accuracy"] = m["accuracy"]
         r[f"{prefix}_precision"] = m["precision"]
         r[f"{prefix}_recall"] = m["recall"]
-        r[f"{prefix}_cm"] = confusion_matrix(true_y, preds).tolist()
+        r[f"{prefix}_cm"] = confusion_matrix(true_y, preds, labels=[x.value for x in Labels]).tolist()
         self.update_results(**r)
 
     def evaluate(self, model, train_df, valid_df, test_df):
@@ -249,10 +256,12 @@ class Experiment:
 
     def _plot_confusion_matrix(self, cm, normalize, fmt=None):
         if normalize:
-            cm = cm / cm.sum(axis=1)[:, None]
+            s = cm.sum(axis=1)[:, None]
+            s[s == 0] = 1
+            cm = cm / s
         if fmt is None:
             fmt = "0.2f" if normalize else "d"
-        target_names = ["OTHER", "DATASET", "MODEL (paper)", "MODEL (comp.)", "METRIC"] #, "PARAMS"]
+        target_names = ["OTHER", "DATASET", "MODEL (paper)", "MODEL (comp.)", "METRIC", "EMPTY"]
         df_cm = pd.DataFrame(cm, index=[i for i in target_names],
                              columns=[i for i in target_names])
         plt.figure(figsize=(10, 10))

@@ -7,6 +7,10 @@ import pickle
 from joblib import Parallel, delayed
 from collections import UserList
 from ..helpers.jupyter import display_table
+import string
+import random
+from extract_tables import extract_tables
+
 
 class Paper:
     def __init__(self, paper_id, text, tables, annotations):
@@ -23,6 +27,33 @@ class Paper:
             self.gold_tags = annotations.gold_tags.strip()
         else:
             self.gold_tags = ''
+
+    def table_by_name(self, name):
+        for table in self.tables:
+            if table.name == name:
+                return table
+        return None
+
+
+# todo: make sure multithreading/processing won't cause collisions
+def random_id():
+    return "temp_" + ''.join(random.choice(string.ascii_lowercase) for i in range(10))
+
+
+class TempPaper(Paper):
+    """Similar to Paper, but can be used as context manager, temporarily saving the paper to elastic"""
+    def __init__(self, html):
+        paper_id = random_id()
+        text = PaperText.from_html(html, paper_id)
+        tables = extract_tables(html)
+        super().__init__(paper_id=paper_id, text=text, tables=tables, annotations=None)
+
+    def __enter__(self):
+        self.text.save()
+        return self
+
+    def __exit__(self, exc, value, tb):
+        self.text.delete()
 
 
 arxiv_version_re = re.compile(r"v\d+$")
@@ -42,8 +73,12 @@ def _load_tables(path, annotations, jobs, migrate):
     return {f.parent.name: tbls for f, tbls in zip(files, tables)}
 
 
-def _load_annotated_papers(path):
-    dump = load_gql_dump(path, compressed=path.suffix == ".gz")["allPapers"]
+def _load_annotated_papers(data_or_path):
+    if isinstance(data_or_path, dict):
+        compressed = False
+    else:
+        compressed = data_or_path.suffix == ".gz"
+    dump = load_gql_dump(data_or_path, compressed=compressed)["allPapers"]
     annotations = {remove_arxiv_version(a.arxiv_id): a for a in dump}
     annotations.update({a.arxiv_id: a for a in dump})
     return annotations
@@ -54,21 +89,24 @@ class PaperCollection(UserList):
         super().__init__(data)
 
     @classmethod
-    def from_files(cls, path, annotations_path=None, load_texts=True, load_tables=True, jobs=-1, migrate=False):
+    def from_files(cls, path, annotations_path=None, load_texts=True, load_tables=True, load_annotations=True, jobs=-1, migrate=False):
         path = Path(path)
         if annotations_path is None:
             annotations_path = path / "structure-annotations.json"
+        else:
+            annotations_path = Path(annotations_path)
         if load_texts:
             texts = _load_texts(path, jobs)
         else:
             texts = {}
 
-        annotations = _load_annotated_papers(annotations_path)
+        annotations = {}
         if load_tables:
+            if load_annotations:
+                annotations = _load_annotated_papers(annotations_path)
             tables = _load_tables(path, annotations, jobs, migrate)
         else:
             tables = {}
-            annotations = {}
         outer_join = set(texts).union(set(tables))
 
         papers = [Paper(k, texts.get(k), tables.get(k, []), annotations.get(k)) for k in outer_join]

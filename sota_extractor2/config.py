@@ -10,7 +10,7 @@ graphql_url = 'http://10.0.1.145:8001/graphql/'
 
 # otherwise use this files
 data = Path("/mnt/efs/pwc/data")
-goldtags_dump = data / "dumps" / "goldtags-2019.08.06_0835.json.gz"
+goldtags_dump = data / "dumps" / "goldtags-2019.10.15_2227.json.gz"
 
 
 elastic = dict(hosts=['localhost'], timeout=20)
@@ -22,3 +22,11 @@ htmls_clean = arxiv/'htmls-clean'
 
 datasets = data/"datasets"
 datasets_structure = datasets/"structure"
+structure_models = datasets / "structure" / "models"
+
+mocks = datasets / "mocks"
+
+linking_models = datasets / "linking" / "models"
+linking_data = datasets / "linking" / "data"
+
+autodict = linking_data / "autodict"

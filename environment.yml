@@ -16,3 +16,4 @@ dependencies:
 - elasticsearch-dsl=7.0.0
 - ipython=7.5.0
 - joblib=0.13.2
+- python-magic=0.4.15

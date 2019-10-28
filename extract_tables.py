@@ -13,8 +13,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Set
 
-from tabular import Tabular
-
+from sota_extractor2.data.table import Table
 
 # begin of dirty hack
 # pandas parsing of html tables is really nice
@@ -265,18 +264,13 @@ def html2data(table):
     return data[0] if len(data) == 1 else None
 
 
-def save_table(data, filename):
-    data.to_csv(filename, header=None, index=None)
-
-
 def save_tables(data, outdir):
     metadata = []
 
     for num, table in enumerate(data, 1):
         filename = f"table_{num:02}.csv"
         layout = f"layout_{num:02}.csv"
-        save_table(table.data, outdir / filename)
-        save_table(table.layout, outdir / layout)
+        table.save(outdir, filename, layout)
         metadata.append(dict(filename=filename, layout=layout, caption=table.caption, figure_id=table.figure_id))
     with open(outdir / "metadata.json", "w") as f:
         json.dump(metadata, f)
@@ -341,11 +335,7 @@ def remove_footnotes(soup):
         elem.extract()
 
 
-def extract_tables(filename, outdir):
-    with open(filename, "rb") as f:
-        html = f.read()
-    outdir = Path(outdir)
-    outdir.mkdir(parents=True, exist_ok=True)
+def extract_tables(html):
     soup = BeautifulSoup(html, "lxml", from_encoding="utf-8")
     set_ids_by_labels(soup)
     fix_span_tables(soup)
@@ -381,8 +371,15 @@ def extract_tables(filename, outdir):
             if cap_el is not None:
                 caption = clear_ws(cap_el.get_text())
         figure_id = table.get("data-figure-id")
-        data.append(Tabular(tab, layout, caption, figure_id))
+        data.append(Table(f"table_{len(data)+1:02}", tab, layout.applymap(str), caption, figure_id))
+    return data
 
-    save_tables(data, outdir)
+def extract_tables_cmd(filename, outdir):
+    with open(filename, "rb") as f:
+        html = f.read()
+    tables = extract_tables(html)
+    outdir = Path(outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    save_tables(tables, outdir)
 
-if __name__ == "__main__": fire.Fire(extract_tables)
+if __name__ == "__main__": fire.Fire(extract_tables_cmd)
