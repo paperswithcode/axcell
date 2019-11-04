@@ -3,7 +3,8 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 import pickle
-from .experiment import Experiment, Labels, label_map
+from .experiment import Labels, label_map
+from .ulmfit_experiment import ULMFiTExperiment
 import re
 from .ulmfit import ULMFiT_SP
 from ...pipeline_logger import pipeline_logger
@@ -45,13 +46,11 @@ class TableStructurePredictor(ULMFiT_SP):
         self.crf = load_crf(crf_path / crf_model)
 
         # todo: clean Experiment from older approaches
-        self._e = Experiment(remove_num=False, drop_duplicates=False, vectorizer='count',
-                       this_paper=True, merge_fragments=True, merge_type='concat',
-                       evidence_source='text_highlited', split_btags=True, fixed_tokenizer=True,
-                       fixed_this_paper=True, mask=False, evidence_limit=None, context_tokens=None,
-                       analyzer='word', lowercase=True, class_weight='balanced', multinomial_type='multinomial',
-                       solver='lbfgs', C=0.1, dual=False, penalty='l2', ngram_range=[1, 3],
-                       min_df=10, max_df=0.9, max_iter=1000, results={}, has_model=False)
+        self._e = ULMFiTExperiment(remove_num=False, drop_duplicates=False,
+               this_paper=True, merge_fragments=True, merge_type='concat',
+               evidence_source='text_highlited', split_btags=True, fixed_tokenizer=True,
+               fixed_this_paper=True, mask=False, evidence_limit=None, context_tokens=None,
+               lowercase=True)
 
     def preprocess_df(self, raw_df):
         return self._e.transform_df(raw_df)
@@ -140,7 +139,7 @@ class TableStructurePredictor(ULMFiT_SP):
         df2.label = n_classes
         return df1.append(df2, ignore_index=True)
 
-
+    # todo: fix numeric cells being labelled as meta / other
     def format_predictions(self, tables_preds, test_ids):
         num2label = {v: k for k, v in label_map.items()}
         num2label[0] = "table-meta"
@@ -172,6 +171,7 @@ class TableStructurePredictor(ULMFiT_SP):
         ext_id = (paper.paper_id, table.name)
         if ext_id in annotations:
             for _, entry in annotations[ext_id].iterrows():
+                # todo: add model-ensemble support
                 structure.iloc[entry.row, entry.col] = entry.predicted_tags if entry.predicted_tags != "model-paper" else "model-best"
         if not in_place:
             table = deepcopy(table)

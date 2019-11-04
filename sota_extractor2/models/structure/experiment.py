@@ -34,9 +34,21 @@ label_map = {
 # put here to avoid recompiling, used only in _limit_context
 elastic_tag_split_re = re.compile("(<b>.*?</b>)")
 
+# e = Experiment(remove_num=False, drop_duplicates=False, vectorizer='count',
+#                this_paper=True, merge_fragments=True, merge_type='concat',
+#                evidence_source='text_highlited', split_btags=True, fixed_tokenizer=True,
+#                fixed_this_paper=True, mask=False, evidence_limit=None, context_tokens=None,
+#                analyzer='word', lowercase=True, class_weight='balanced', multinomial_type='multinomial',
+#                solver='lbfgs', C=0.1, dual=False, penalty='l2', ngram_range=[1, 3],
+#                min_df=10, max_df=0.9, max_iter=1000, results={}, has_model=False)
+
+# ULMFiT related parameters
+# remove_num, drop_duplicates, this_paper, merge_fragments, merge_type, evidence_source, split_btags
+# fixed_tokenizer?, fixed_this_paper (remove), mask, evidence_limit, context_tokens, lowercase
+# class_weight? (consider adding support),
+
 @dataclass
 class Experiment:
-    vectorizer: str = "tfidf"
     this_paper: bool = False
     merge_fragments: bool = False
     merge_type: str = "concat"  # "concat", "vote_maj", "vote_avg", "vote_max"
@@ -47,22 +59,10 @@ class Experiment:
     mask: bool = False             # if True and evidence_source = "text_highlited", replace <b>...</b> with xxmask
     evidence_limit: int = None     # maximum number of evidences per cell (grouped by (ext_id, this_paper))
     context_tokens: int = None      # max. number of words before <b> and after </b>
-    analyzer: str = "word"            # "char", "word" or "char_wb"
     lowercase: bool = True
     remove_num: bool = True
     drop_duplicates: bool = True
     mark_this_paper: bool = False
-
-    class_weight: str = None
-    multinomial_type: str = "manual"  # "manual", "ovr", "multinomial"
-    solver: str = "liblinear"  # 'lbfgs' - large, liblinear for small datasets
-    C: float = 4.0
-    dual: bool = True
-    penalty: str = "l2"
-    ngram_range: tuple = (1, 2)
-    min_df: int = 3
-    max_df: float = 0.9
-    max_iter: int = 1000
 
     results: dict = dataclasses.field(default_factory=dict)
 
@@ -78,18 +78,30 @@ class Experiment:
                 return dir_path / name
         raise Exception("You have too many files in this dir, really!")
 
-    def _save_model(self, path):
+    @staticmethod
+    def _dump_pickle(obj, path):
         with open(path, 'wb') as f:
-            pickle.dump(self._model, f)
+            pickle.dump(obj, f)
+
+    @staticmethod
+    def _load_pickle(path):
+        with open(path, 'rb') as f:
+            return pickle.load(f)
+
+    def _save_model(self, path):
+        self._dump_pickle(self._model, path)
 
     def _load_model(self, path):
-        with open(path, 'rb') as f:
-            self._model = pickle.load(f)
-            return self._model
+        self._model = self._load_pickle(path)
+        return self._model
 
     def load_model(self):
         path = self._path.parent / f"{self._path.stem}.model"
         return self._load_model(path)
+
+    def save_model(self, path):
+        if hasattr(self, "_model"):
+            self._save_model(path)
 
     def save(self, dir_path):
         dir_path = Path(dir_path)
@@ -98,9 +110,7 @@ class Experiment:
         j = dataclasses.asdict(self)
         with open(filename, "wt") as f:
             json.dump(j, f)
-        if hasattr(self, "_model"):
-            fn = filename.stem
-            self._save_model(dir_path / f"{fn}.model")
+        self.save_model(dir_path / f"{filename.stem}.model")
         return filename.name
 
     def to_df(self):
@@ -119,12 +129,13 @@ class Experiment:
     def update_results(self, **kwargs):
         self.results.update(**kwargs)
 
-    def get_trained_model(self, train_df):
-        nbsvm = NBSVM(experiment=self)
-        nbsvm.fit(train_df["text"], train_df["label"])
-        self._model = nbsvm
+    def train_model(self, train_df, valid_df):
+        raise NotImplementedError("train_model should be implemented in subclass")
+
+    def get_trained_model(self, train_df, valid_df):
+        self._model = self.train_model(train_df, valid_df)
         self.has_model = True
-        return nbsvm
+        return self._model
 
     def _limit_context(self, text):
         parts = elastic_tag_split_re.split(text)
@@ -301,3 +312,23 @@ class Experiment:
         dfs = [e.to_df() for e in exps]
         df = pd.concat(dfs)
         return df
+
+@dataclass
+class NBSVMExperiment(Experiment):
+    vectorizer: str = "tfidf"
+    analyzer: str = "word"            # "char", "word" or "char_wb"
+    class_weight: str = None
+    multinomial_type: str = "manual"  # "manual", "ovr", "multinomial"
+    solver: str = "liblinear"  # 'lbfgs' - large, liblinear for small datasets
+    C: float = 4.0
+    dual: bool = True
+    penalty: str = "l2"
+    ngram_range: tuple = (1, 2)
+    min_df: int = 3
+    max_df: float = 0.9
+    max_iter: int = 1000
+
+    def train_model(self, train_df, valid_df=None):
+        nbsvm = NBSVM(experiment=self)
+        nbsvm.fit(train_df["text"], train_df["label"])
+        return nbsvm

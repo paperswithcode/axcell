@@ -46,13 +46,36 @@ def empty_fragment(paper_id):
     return fragment
 
 
-def fetch_evidence(cell_content, cell_reference, paper_id, table_name, row, col, paper_limit=10, corpus_limit=10):
+def normalize_query(query):
+    if isinstance(query, list):
+        return tuple(normalize_query(x) for x in query)
+    if isinstance(query, dict):
+        return tuple([(normalize_query(k), normalize_query(v)) for k,v in query.items()])
+    return query
+
+_evidence_cache = {}
+_cache_miss = 0
+_cache_hit = 0
+def get_cached_or_execute(query):
+    global _evidence_cache, _cache_hit, _cache_miss
+    n = normalize_query(query.to_dict())
+    if n not in _evidence_cache:
+        _evidence_cache[n] = list(query)
+        _cache_miss += 1
+    else:
+        _cache_hit += 1
+    return _evidence_cache[n]
+
+
+def fetch_evidence(cell_content, cell_reference, paper_id, table_name, row, col, paper_limit=10, corpus_limit=10,
+                   cache=False):
     if not filter_cells(cell_content):
         return [empty_fragment(paper_id)]
     cell_content = clear_cell(cell_content)
     if cell_content == "" and cell_reference == "":
         return [empty_fragment(paper_id)]
 
+    cached_query = get_cached_or_execute if cache else lambda x: x
     evidence_query = Fragment.search().highlight(
         'text', pre_tags="<b>", post_tags="</b>", fragment_size=400)
     cell_content = cell_content.replace("\xa0", " ")
@@ -60,21 +83,21 @@ def fetch_evidence(cell_content, cell_reference, paper_id, table_name, row, col,
         "query": cell_content,
         "slop": 2
     }
-    paper_fragments = list(evidence_query
+    paper_fragments = list(cached_query(evidence_query
                            .filter('term', paper_id=paper_id)
-                           .query('match_phrase', text=query)[:paper_limit])
+                           .query('match_phrase', text=query)[:paper_limit]))
     if cell_reference != "":
-        reference_fragments = list(evidence_query
+        reference_fragments = list(cached_query(evidence_query
                                    .filter('term', paper_id=paper_id)
                                    .query('match_phrase', text={
                                         "query": cell_reference,
                                         "slop": 1
-                                    })[:paper_limit])
+                                    })[:paper_limit]))
     else:
         reference_fragments = []
-    other_fagements = list(evidence_query
+    other_fagements = list(cached_query(evidence_query
                            .exclude('term', paper_id=paper_id)
-                           .query('match_phrase', text=query)[:corpus_limit])
+                           .query('match_phrase', text=query)[:corpus_limit]))
 
     ext_id = f"{paper_id}/{table_name}/{row}.{col}"
     ####print(f"{ext_id} |{cell_content}|: {len(paper_fragments)} paper fragments, {len(reference_fragments)} reference fragments, {len(other_fagements)} other fragments")
@@ -137,22 +160,23 @@ def filter_cells(cell_content):
 interesting_types = ["model-paper", "model-best", "model-competing", "dataset", "dataset-sub",  "dataset-task"]
 
 
-def evidence_for_table(paper_id, table, paper_limit, corpus_limit):
+def evidence_for_table(paper_id, table, paper_limit, corpus_limit, cache=False):
     records = [
         record
             for cell in consume_cells(table)
             for evidence in fetch_evidence(cell.vals[0], cell.vals[2], paper_id=paper_id, table_name=table.name,
-                                           row=cell.row, col=cell.col, paper_limit=paper_limit, corpus_limit=corpus_limit)
+                                           row=cell.row, col=cell.col, paper_limit=paper_limit, corpus_limit=corpus_limit,
+                                           cache=cache)
             for record in create_evidence_records(evidence, cell, paper_id=paper_id, table=table)
     ]
     df = pd.DataFrame.from_records(records, columns=evidence_columns)
     return df
 
 
-def prepare_data(tables, csv_path):
+def prepare_data(tables, csv_path, cache=False):
     data = [evidence_for_table(table.paper_id, table,
                                        paper_limit=100,
-                                       corpus_limit=20) for table in progress_bar(tables)]
+                                       corpus_limit=20, cache=cache) for table in progress_bar(tables)]
     if len(data):
         df = pd.concat(data)
     else:
