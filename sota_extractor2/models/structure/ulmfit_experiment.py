@@ -1,10 +1,11 @@
-from .experiment import Experiment
+from .experiment import Experiment, label_map_ext
 from .nbsvm import preds_for_cell_content, preds_for_cell_content_max, preds_for_cell_content_multi
 import dataclasses
 from dataclasses import dataclass
 from typing import Tuple
 from sota_extractor2.helpers.training import set_seed
 from fastai.text import *
+from fastai.text.learner import _model_meta
 import numpy as np
 from pathlib import Path
 import json
@@ -24,6 +25,9 @@ class ULMFiTExperiment(Experiment):
     dataset: str = None
     train_on_easy: bool = True
     BS: int = 64
+    valid_split: str = 'speech_rec'
+    test_split: str = 'img_class'
+    n_layers: int = 3
 
     has_predictions: bool = False   # similar to has_model, but to avoid storing pretrained models we only keep predictions
                                     # that can be later used by CRF
@@ -64,7 +68,10 @@ class ULMFiTExperiment(Experiment):
     # todo: make it compatible with Experiment
     def train_model(self, data_clas):
         set_seed(self.seed, "clas")
-        clas = text_classifier_learner(data_clas, AWD_LSTM, drop_mult=self.drop_mult)
+        cfg = _model_meta[AWD_LSTM]['config_clas'].copy()
+        cfg['n_layers'] = self.n_layers
+
+        clas = text_classifier_learner(data_clas, AWD_LSTM, config=cfg, drop_mult=self.drop_mult)
         clas.load_encoder(self.pretrained_lm)
         if self.fp16:
             clas = clas.to_fp16()
@@ -124,5 +131,6 @@ class ULMFiTExperiment(Experiment):
                 true_y = vote_results["true"]
             else:
                 true_y = tdf["label"]
-            self._set_results(prefix, preds, true_y)
+                true_y_ext = tdf["cell_type"].apply(lambda x: label_map_ext.get(x, 0))
+            self._set_results(prefix, preds, true_y, true_y_ext)
             self._preds.append(probs)
