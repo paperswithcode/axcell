@@ -42,6 +42,8 @@ class TableStructurePredictor(ULMFiT_SP):
         self._full_learner = deepcopy(self.learner)
         self.learner.model = cut_ulmfit_head(self.learner.model)
         self.learner.loss_func = None
+
+        #todo: make CRF optional
         crf_path = Path(path) if crf_path is None else Path(crf_path)
         self.crf = load_crf(crf_path / crf_model)
 
@@ -49,8 +51,8 @@ class TableStructurePredictor(ULMFiT_SP):
         self._e = ULMFiTExperiment(remove_num=False, drop_duplicates=False,
                this_paper=True, merge_fragments=True, merge_type='concat',
                evidence_source='text_highlited', split_btags=True, fixed_tokenizer=True,
-               fixed_this_paper=True, mask=False, evidence_limit=None, context_tokens=None,
-               lowercase=True)
+               fixed_this_paper=True, mask=True, evidence_limit=None, context_tokens=None,
+               lowercase=True, drop_mult=0.15, fp16=True, train_on_easy=False)
 
     def preprocess_df(self, raw_df):
         return self._e.transform_df(raw_df)
@@ -169,7 +171,11 @@ class TableStructurePredictor(ULMFiT_SP):
         if use_crf:
             preds = self.crf.predict(tables)
         else:
-            preds = [table[..., :n_classes].argmax(axis=-1) for table in tables]
+            preds = []
+            for table in tables:
+                p = table[..., :n_classes].argmax(axis=-1)
+                p[table[..., :n_classes].max(axis=-1) == 0.0] = n_classes
+                preds.append(p)
         return self.format_predictions(preds, ids)
 
     # todo: consider adding sota/ablation information
