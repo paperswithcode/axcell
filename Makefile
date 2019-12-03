@@ -72,8 +72,12 @@ $(ANNOTATIONS_DIR)/evaluation-tables.json.gz:
 	$(shell mkdir -p "$(ANNOTATIONS_DIR)")
 	wget https://paperswithcode.com/media/about/evaluation-tables.json.gz -O $@
 
+.PHONY: pull_images
+pull_images:
+	docker pull arxivvanity/engrafo:b3db888fefa118eacf4f13566204b68ce100b3a6
+	docker pull zenika/alpine-chrome:73
 
-.PHONY : clean
+.PHONY: clean
 clean :
 	cd "$(ANNOTATIONS_DIR)" && rm -f *.json *.csv
 	#rm -f *.gz
