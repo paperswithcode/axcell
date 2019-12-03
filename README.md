@@ -20,8 +20,9 @@ Directory structure:
 ```
 
 
-To preprocess data and extract tables, run:
+To preprocess data and extract tables and texts, run:
 ```
+make pull_images
 conda env create -f environment.yml
 source activate xtables
 make -j 8 -i extract_all > stdout.log 2> stderr.log
