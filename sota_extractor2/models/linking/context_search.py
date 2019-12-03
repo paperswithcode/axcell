@@ -138,6 +138,8 @@ datasets.update({
     'LibriSpeech dev-other': ['libri speech dev other', 'libri speech', 'dev', 'other', 'dev other', 'development', 'noisy'],
 })
 
+tasks = {}
+
 # escaped_ws_re = re.compile(r'\\\s+')
 # def name_to_re(name):
 #     return re.compile(r'(?:^|\s+)' + escaped_ws_re.sub(r'\\s*', re.escape(name.strip())) + r'(?:$|\s+)', re.I)
@@ -145,6 +147,8 @@ datasets.update({
 #all_datasets = set(k for k,v in merged_p.items() if k != '' and not re.match("^\d+$", k) and v.get('NOMATCH', 0.0) < 0.9)
 all_datasets = set(normalize_cell_ws(normalize_dataset(y)) for x in datasets.values() for y in x)
 all_metrics = set(normalize_cell_ws(y) for x in metrics.values() for y in x)
+all_tasks = set(normalize_cell_ws(normalize_dataset(y)) for x in tasks.values() for y in x)
+
 #all_metrics = set(metrics_p.keys())
 
 # all_datasets_re = {x:name_to_re(x) for x in all_datasets}
@@ -187,6 +191,7 @@ def find_names(text, names_trie):
 
 all_datasets_trie = make_trie(all_datasets)
 all_metrics_trie = make_trie(all_metrics)
+all_tasks_trie = make_trie(all_tasks)
 
 
 def find_datasets(text):
@@ -195,18 +200,23 @@ def find_datasets(text):
 def find_metrics(text):
     return find_names(text, all_metrics_trie)
 
+def find_tasks(text):
+    return find_names(text, all_tasks_trie)
+
 def dummy_item(reason):
     return pd.DataFrame(dict(dataset=[reason], task=[reason], metric=[reason], evidence=[""], confidence=[0.0]))
 
 
 
 @njit
-def compute_logprobs(taxonomy, reverse_merged_p, reverse_metrics_p, dss, mss, noise, ms_noise, ds_pb, ms_pb, logprobs):
+def compute_logprobs(taxonomy, reverse_merged_p, reverse_metrics_p, reverse_task_p,
+                     dss, mss, tss, noise, ms_noise, ts_noise, ds_pb, ms_pb, ts_pb, logprobs):
     empty = typed.Dict.empty(types.unicode_type, types.float64)
     for i, (task, dataset, metric) in enumerate(taxonomy):
         logprob = 0.0
         short_probs = reverse_merged_p.get(dataset, empty)
         met_probs = reverse_metrics_p.get(metric, empty)
+        task_probs = reverse_task_p.get(task, empty)
         for ds in dss:
             #                 for abbrv, long_form in abbrvs.items():
             #                     if ds == abbrv:
@@ -216,17 +226,21 @@ def compute_logprobs(taxonomy, reverse_merged_p, reverse_metrics_p, dss, mss, no
             logprob += np.log(noise * ds_pb + (1 - noise) * short_probs.get(ds, 0.0))
         for ms in mss:
             logprob += np.log(ms_noise * ms_pb + (1 - ms_noise) * met_probs.get(ms, 0.0))
+        for ts in tss:
+            logprob += np.log(ts_noise * ts_pb + (1 - ts_noise) * task_probs.get(ts, 0.0))
         logprobs[i] += logprob
         #logprobs[(dataset, metric)] = logprob
 
 
 class ContextSearch:
-    def __init__(self, taxonomy, context_noise=(0.5, 0.2, 0.1), metrics_noise=None, ds_pb=0.001, ms_pb=0.01, debug_gold_df=None):
+    def __init__(self, taxonomy, context_noise=(0.5, 0.2, 0.1), metrics_noise=None, task_noise=None,
+                 ds_pb=0.001, ms_pb=0.01, ts_pb=0.01, debug_gold_df=None):
         merged_p = \
         get_probs({k: Counter([normalize_cell(normalize_dataset(x)) for x in v]) for k, v in datasets.items()})[1]
         metrics_p = \
         get_probs({k: Counter([normalize_cell(normalize_dataset(x)) for x in v]) for k, v in metrics.items()})[1]
-
+        tasks_p = \
+        get_probs({k: Counter([normalize_cell(normalize_dataset(x)) for x in v]) for k, v in tasks.items()})[1]
 
         self.queries = {}
         self.taxonomy = taxonomy
@@ -236,10 +250,13 @@ class ContextSearch:
         self.extract_acronyms = AcronymExtractor()
         self.context_noise = context_noise
         self.metrics_noise = metrics_noise if metrics_noise else context_noise
+        self.task_noise = task_noise if task_noise else context_noise
         self.ds_pb = ds_pb
         self.ms_pb = ms_pb
+        self.ts_pb = ts_pb
         self.reverse_merged_p = self._numba_update_nested_dict(reverse_probs(merged_p))
         self.reverse_metrics_p = self._numba_update_nested_dict(reverse_probs(metrics_p))
+        self.reverse_tasks_p = self._numba_update_nested_dict(reverse_probs(tasks_p))
         self.debug_gold_df = debug_gold_df
 
     def _numba_update_nested_dict(self, nested):
@@ -256,29 +273,33 @@ class ContextSearch:
             l.append(x)
         return l
 
-    def compute_context_logprobs(self, context, noise, ms_noise, logprobs):
+    def compute_context_logprobs(self, context, noise, ms_noise, ts_noise, logprobs):
         context = context or ""
         abbrvs = self.extract_acronyms(context)
         context = normalize_cell_ws(normalize_dataset(context))
         dss = set(find_datasets(context)) | set(abbrvs.keys())
         mss = set(find_metrics(context))
+        tss = set(find_tasks(context))
         dss -= mss
+        dss -= tss
         dss = [normalize_cell(ds) for ds in dss]
         mss = [normalize_cell(ms) for ms in mss]
+        tss = [normalize_cell(ts) for ts in tss]
         ###print("dss", dss)
         ###print("mss", mss)
         dss = self._numba_extend_list(dss)
         mss = self._numba_extend_list(mss)
-        compute_logprobs(self._taxonomy, self.reverse_merged_p, self.reverse_metrics_p,
-                         dss, mss, noise, ms_noise, self.ds_pb, self.ms_pb, logprobs)
+        tss = self._numba_extend_list(tss)
+        compute_logprobs(self._taxonomy, self.reverse_merged_p, self.reverse_metrics_p, self.reverse_tasks_p,
+                         dss, mss, tss, noise, ms_noise, ts_noise, self.ds_pb, self.ms_pb, self.ts_pb, logprobs)
 
     def match(self, contexts):
         assert len(contexts) == len(self.context_noise)
         n = len(self._taxonomy)
         context_logprobs = np.zeros(n)
 
-        for context, noise, ms_noise in zip(contexts, self.context_noise, self.metrics_noise):
-            self.compute_context_logprobs(context, noise, ms_noise, context_logprobs)
+        for context, noise, ms_noise, ts_noise in zip(contexts, self.context_noise, self.metrics_noise, self.task_noise):
+            self.compute_context_logprobs(context, noise, ms_noise, ts_noise, context_logprobs)
         keys = self.taxonomy.taxonomy
         logprobs = context_logprobs
         #keys, logprobs = zip(*context_logprobs.items())
