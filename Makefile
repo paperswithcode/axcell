@@ -1,5 +1,4 @@
 DATA_DIR = data
-ANNOTATIONS_DIR = $(DATA_DIR)/annotations
 ARXIV_DIR = $(DATA_DIR)/arxiv
 ARCHIVES_DIR = $(ARXIV_DIR)/sources
 UNPACKED_DIR = $(ARXIV_DIR)/unpacked_sources
@@ -16,7 +15,7 @@ TABLES      := $(patsubst $(ARCHIVES_DIR)/%.gz,$(TABLES_DIR)/%,$(ARCHIVES))
 TEXTS       := $(patsubst $(ARCHIVES_DIR)/%.gz,$(TEXTS_DIR)/%/text.json,$(ARCHIVES))
 
 .PHONY: all
-all:	$(ANNOTATIONS_DIR)/pdfs-urls.csv $(ANNOTATIONS_DIR)/sources-urls.csv extract_all
+all:	extract_all
 
 .PHONY: test
 test: DATA_DIR = test/data
@@ -56,22 +55,6 @@ unpack_all: $(UNPACKS)
 $(UNPACKS): $(UNPACKED_DIR)/%: $(ARCHIVES_DIR)/%.gz
 	./unpack-sources.sh $^ $@
 
-$(ANNOTATIONS_DIR)/pdfs-urls.csv:	$(ANNOTATIONS_DIR)/papers-urls.csv
-	sed -e 's#/abs/#/pdf/#' -e 's#$$#.pdf#' $^ > $@
-
-$(ANNOTATIONS_DIR)/sources-urls.csv:	$(ANNOTATIONS_DIR)/papers-urls.csv
-	sed -e 's#/abs/#/e-print/#' $^ > $@
-
-$(ANNOTATIONS_DIR)/papers-urls.csv:	$(ANNOTATIONS_DIR)/evaluation-tables.json get_papers_links.sh
-	./get_papers_links.sh $< > $@
-
-$(ANNOTATIONS_DIR)/%:	$(ANNOTATIONS_DIR)/%.gz
-	gunzip -kf $^
-
-$(ANNOTATIONS_DIR)/evaluation-tables.json.gz:
-	$(shell mkdir -p "$(ANNOTATIONS_DIR)")
-	wget https://paperswithcode.com/media/about/evaluation-tables.json.gz -O $@
-
 .PHONY: pull_images
 pull_images:
 	docker pull arxivvanity/engrafo:b3db888fefa118eacf4f13566204b68ce100b3a6
@@ -79,5 +62,4 @@ pull_images:
 
 .PHONY: clean
 clean :
-	cd "$(ANNOTATIONS_DIR)" && rm -f *.json *.csv
 	#rm -f *.gz
