@@ -1,6 +1,5 @@
 from .elastic import Paper as PaperText, Fragments
 from .table import Table, read_tables
-from .json import load_gql_dump
 from pathlib import Path
 import re
 import pickle

@@ -31,3 +31,5 @@ To test the whole extraction on a single file run
 ```
 make test
 ```
+
+See `extraction-pipeline.ipynb` for an example on how to work with the produced files.
