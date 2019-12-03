@@ -6,4 +6,4 @@ OUTPUT=$(realpath "$2")		#~/arxiv/htmls/1701/1701.xyz.html
 OUTPUT_DIR=$(dirname "$OUTPUT")	#~/arxiv/htmls/1701
 FILENAME=$(basename "$OUTPUT") #1701.xyz.html
 
-docker run --rm -v $PWD/latex2html.sh:/files/latex2html.sh:ro -v $PWD/guess_main.py:/files/guess_main.py:ro -v $PWD/patches:/files/patches:ro -v "$SOURCE_DIR":/files/ro-source:ro -v "$OUTPUT_DIR":/files/htmls arxivvanity/engrafo /files/latex2html.sh "$FILENAME"
+docker run --rm -v $PWD/latex2html.sh:/files/latex2html.sh:ro -v $PWD/guess_main.py:/files/guess_main.py:ro -v $PWD/patches:/files/patches:ro -v "$SOURCE_DIR":/files/ro-source:ro -v "$OUTPUT_DIR":/files/htmls arxivvanity/engrafo:b3db888fefa118eacf4f13566204b68ce100b3a6 /files/latex2html.sh "$FILENAME"

@@ -4,4 +4,4 @@ SOURCE=$(realpath "$1")
 mkdir -p $(dirname "$2")
 OUTPUT=$(realpath "$2")
 
-docker run --rm -v "$SOURCE":/files/index.html:ro --entrypoint '' zenika/alpine-chrome:73 timeout -t 20 -s KILL chromium-browser --headless --disable-gpu --disable-software-rasterizer --no-sandbox --timeout=30000 --dump-dom /files/index.html > "$OUTPUT"
+docker run --rm -v "$SOURCE":/files/index.html:ro --entrypoint '' zenika/alpine-chrome:73 timeout -s KILL 20 chromium-browser --headless --disable-gpu --disable-software-rasterizer --no-sandbox --timeout=30000 --dump-dom /files/index.html > "$OUTPUT"
