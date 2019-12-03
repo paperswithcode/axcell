@@ -147,6 +147,10 @@ class Table:
                 self.df.iloc[r,c].gold_tags = cell.strip()
 
     @property
+    def shape(self):
+        return self.df.shape
+
+    @property
     def matrix(self):
         return self.df.applymap(lambda x: x.value)
 
