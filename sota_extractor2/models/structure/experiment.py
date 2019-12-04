@@ -20,6 +20,20 @@ class Labels(Enum):
     EMPTY=5
 
 
+class LabelsExt(Enum):
+    OTHER=0
+    PARAMS=6
+    TASK=7
+    DATASET=1
+    SUBDATASET=8
+    PAPER_MODEL=2
+    BEST_MODEL=9
+    ENSEMBLE_MODEL=10
+    COMPETING_MODEL=3
+    METRIC=4
+    EMPTY=5
+
+
 label_map = {
     "dataset": Labels.DATASET.value,
     "dataset-sub": Labels.DATASET.value,
@@ -27,8 +41,19 @@ label_map = {
     "model-best": Labels.PAPER_MODEL.value,
     "model-ensemble": Labels.PAPER_MODEL.value,
     "model-competing": Labels.COMPETING_MODEL.value,
-    "dataset-metric": Labels.METRIC.value,
-#    "model-params": Labels.PARAMS.value
+    "dataset-metric": Labels.METRIC.value
+}
+
+label_map_ext = {
+    "dataset": LabelsExt.DATASET.value,
+    "dataset-sub": LabelsExt.SUBDATASET.value,
+    "model-paper": LabelsExt.PAPER_MODEL.value,
+    "model-best": LabelsExt.BEST_MODEL.value,
+    "model-ensemble": LabelsExt.ENSEMBLE_MODEL.value,
+    "model-competing": LabelsExt.COMPETING_MODEL.value,
+    "dataset-metric": LabelsExt.METRIC.value,
+    "model-params": LabelsExt.PARAMS.value,
+    "dataset-task": LabelsExt.TASK.value
 }
 
 # put here to avoid recompiling, used only in _limit_context
@@ -63,6 +88,7 @@ class Experiment:
     remove_num: bool = True
     drop_duplicates: bool = True
     mark_this_paper: bool = False
+    distinguish_model_source: bool = True
 
     results: dict = dataclasses.field(default_factory=dict)
 
@@ -219,6 +245,8 @@ class Experiment:
             df = df.replace(re.compile(r"(^|[ ])\d+(\b|%)"), " xxnum ")
         df = df.replace(re.compile(r"\bdata set\b"), " dataset ")
         df["label"] = df["cell_type"].apply(lambda x: label_map.get(x, 0))
+        if not self.distinguish_model_source:
+            df["label"] = df["label"].apply(lambda x: x if x != Labels.COMPETING_MODEL.value else Labels.PAPER_MODEL.value)
         df["label"] = pd.Categorical(df["label"])
         return df
 
@@ -228,13 +256,15 @@ class Experiment:
             return transformed[0]
         return transformed
 
-    def _set_results(self, prefix, preds, true_y):
+    def _set_results(self, prefix, preds, true_y, true_y_ext=None):
         m = metrics(preds, true_y)
         r = {}
         r[f"{prefix}_accuracy"] = m["accuracy"]
         r[f"{prefix}_precision"] = m["precision"]
         r[f"{prefix}_recall"] = m["recall"]
         r[f"{prefix}_cm"] = confusion_matrix(true_y, preds, labels=[x.value for x in Labels]).tolist()
+        if true_y_ext is not None:
+            r[f"{prefix}_cm_full"] = confusion_matrix(true_y_ext, preds, labels=[x.value for x in LabelsExt]).tolist()
         self.update_results(**r)
 
     def evaluate(self, model, train_df, valid_df, test_df):
@@ -253,9 +283,10 @@ class Experiment:
                 true_y = vote_results["true"]
             else:
                 true_y = tdf["label"]
-            self._set_results(prefix, preds, true_y)
+                true_y_ext = tdf["cell_type"].apply(lambda x: label_map_ext.get(x, 0))
+            self._set_results(prefix, preds, true_y, true_y_ext)
 
-    def show_results(self, *ds, normalize=True):
+    def show_results(self, *ds, normalize=True, full_cm=True):
         if not len(ds):
             ds = ["train", "valid", "test"]
         for prefix in ds:
@@ -263,7 +294,8 @@ class Experiment:
             print(f" * accuracy: {self.results[f'{prefix}_accuracy']:.3f}")
             print(f" * μ-precision: {self.results[f'{prefix}_precision']:.3f}")
             print(f" * μ-recall: {self.results[f'{prefix}_recall']:.3f}")
-            self._plot_confusion_matrix(np.array(self.results[f'{prefix}_cm']), normalize=normalize)
+            suffix = '_full' if full_cm and f'{prefix}_cm_full' in self.results else ''
+            self._plot_confusion_matrix(np.array(self.results[f'{prefix}_cm{suffix}']), normalize=normalize)
 
     def _plot_confusion_matrix(self, cm, normalize, fmt=None):
         if normalize:
@@ -272,7 +304,12 @@ class Experiment:
             cm = cm / s
         if fmt is None:
             fmt = "0.2f" if normalize else "d"
-        target_names = ["OTHER", "DATASET", "MODEL (paper)", "MODEL (comp.)", "METRIC", "EMPTY"]
+
+        if len(cm) == 6:
+            target_names = ["OTHER", "DATASET", "MODEL (paper)", "MODEL (comp.)", "METRIC", "EMPTY"]
+        else:
+            target_names = ["OTHER", "params", "task", "DATASET", "subdataset", "MODEL (paper)", "model (best)",
+                            "model (ens.)", "MODEL (comp.)", "METRIC", "EMPTY"]
         df_cm = pd.DataFrame(cm, index=[i for i in target_names],
                              columns=[i for i in target_names])
         plt.figure(figsize=(10, 10))

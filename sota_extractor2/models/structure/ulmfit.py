@@ -13,3 +13,6 @@ class ULMFiT_SP:
             if isinstance(processor, SPProcessor):
                 processor.sp_model = sp_path / sp_model
                 processor.sp_vocab = sp_path / sp_vocab
+
+                #todo: see why it wasn't set on save
+                processor.mark_fields = True

@@ -42,6 +42,8 @@ class TableStructurePredictor(ULMFiT_SP):
         self._full_learner = deepcopy(self.learner)
         self.learner.model = cut_ulmfit_head(self.learner.model)
         self.learner.loss_func = None
+
+        #todo: make CRF optional
         crf_path = Path(path) if crf_path is None else Path(crf_path)
         self.crf = load_crf(crf_path / crf_model)
 
@@ -49,8 +51,8 @@ class TableStructurePredictor(ULMFiT_SP):
         self._e = ULMFiTExperiment(remove_num=False, drop_duplicates=False,
                this_paper=True, merge_fragments=True, merge_type='concat',
                evidence_source='text_highlited', split_btags=True, fixed_tokenizer=True,
-               fixed_this_paper=True, mask=False, evidence_limit=None, context_tokens=None,
-               lowercase=True)
+               fixed_this_paper=True, mask=True, evidence_limit=None, context_tokens=None,
+               lowercase=True, drop_mult=0.15, fp16=True, train_on_easy=False)
 
     def preprocess_df(self, raw_df):
         return self._e.transform_df(raw_df)
@@ -66,16 +68,20 @@ class TableStructurePredictor(ULMFiT_SP):
         df = df[text_cols]
         return TextList.from_df(df, cols=text_cols)
 
-    def get_features(self, evidences):
+    def get_features(self, evidences, use_crf=True):
+        if use_crf:
+            learner = self.learner
+        else:
+            learner = self._full_learner
         if len(evidences):
             tl = self.df2tl(evidences)
-            self.learner.data.add_test(tl)
+            learner.data.add_test(tl)
 
-            preds, _ = self.learner.get_preds(DatasetType.Test, ordered=True)
+            preds, _ = learner.get_preds(DatasetType.Test, ordered=True)
             return preds.cpu().numpy()
-        return np.zeros((0, n_ulmfit_features))
+        return np.zeros((0, n_ulmfit_features if use_crf else n_classes))
 
-    def to_tables(self, df, transpose=False):
+    def to_tables(self, df, transpose=False, n_ulmfit_features=n_ulmfit_features):
         X_tables = []
         Y_tables = []
         ids = []
@@ -127,12 +133,12 @@ class TableStructurePredictor(ULMFiT_SP):
         return list(zip(ext_id[0] + "/" + ext_id[1], ext_id[2].astype(int), ext_id[3].astype(int),
                         preds, df.text, df.cell_content, df.cell_layout, df.cell_styles, df.cell_reference, df.label))
 
-    def merge_all_with_preds(self, df, df_num, preds):
+    def merge_all_with_preds(self, df, df_num, preds, use_crf=True):
         columns = ["table_id", "row", "col", "features", "text", "cell_content", "cell_layout",
                    "cell_styles", "cell_reference", "label"]
 
         alpha = self.merge_with_preds(df, preds)
-        nums = self.merge_with_preds(df_num, np.zeros((len(df_num), n_ulmfit_features)))
+        nums = self.merge_with_preds(df_num, np.zeros((len(df_num), n_ulmfit_features if use_crf else n_classes)))
 
         df1 = pd.DataFrame(alpha, columns=columns)
         df2 = pd.DataFrame(nums, columns=columns)
@@ -156,13 +162,20 @@ class TableStructurePredictor(ULMFiT_SP):
                  labels[r, c]])
         return pd.DataFrame(flat, columns=["paper", "table", "row", "col", "predicted_tags"])
 
-    def predict_tags(self, raw_evidences):
+    def predict_tags(self, raw_evidences, use_crf=True):
         evidences, evidences_num = self.keep_alphacells(self.preprocess_df(raw_evidences))
         pipeline_logger(f"{TableStructurePredictor.step}::evidences_split", evidences=evidences, evidences_num=evidences_num)
-        features = self.get_features(evidences)
-        df = self.merge_all_with_preds(evidences, evidences_num, features)
-        tables, contents, ids = self.to_tables(df)
-        preds = self.crf.predict(tables)
+        features = self.get_features(evidences, use_crf)
+        df = self.merge_all_with_preds(evidences, evidences_num, features, use_crf)
+        tables, contents, ids = self.to_tables(df, n_ulmfit_features=n_ulmfit_features if use_crf else n_classes)
+        if use_crf:
+            preds = self.crf.predict(tables)
+        else:
+            preds = []
+            for table in tables:
+                p = table[..., :n_classes].argmax(axis=-1)
+                p[table[..., :n_classes].max(axis=-1) == 0.0] = n_classes
+                preds.append(p)
         return self.format_predictions(preds, ids)
 
     # todo: consider adding sota/ablation information
@@ -179,10 +192,10 @@ class TableStructurePredictor(ULMFiT_SP):
         return table
 
     # todo: take EvidenceExtractor in constructor
-    def label_tables(self, paper, tables, raw_evidences, in_place=False):
+    def label_tables(self, paper, tables, raw_evidences, in_place=False, use_crf=True):
         pipeline_logger(f"{TableStructurePredictor.step}::label_tables", paper=paper, tables=tables, raw_evidences=raw_evidences)
         if len(raw_evidences):
-            tags = self.predict_tags(raw_evidences)
+            tags = self.predict_tags(raw_evidences, use_crf)
             annotations = dict(list(tags.groupby(by=["paper", "table"])))
         else:
             annotations = {}  # just deep-copy all tables
