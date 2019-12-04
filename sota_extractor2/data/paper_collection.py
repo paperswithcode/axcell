@@ -151,5 +151,10 @@ class PaperCollection(UserList):
 
     @classmethod
     def from_pickle(cls, path):
-        with open(path, "rb") as f:
-            return pickle.load(f)
+        import gc
+        try:
+            gc.disable()
+            with open(path, "rb") as f:
+                return pickle.load(f)
+        finally:
+            gc.enable()
