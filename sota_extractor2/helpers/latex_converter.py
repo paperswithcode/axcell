@@ -33,7 +33,7 @@ class LatexConverter:
         output_dir.mkdir(parents=True, exist_ok=True)
         filename = "index.html"
         command = ["/files/latex2html.sh", filename]
-        self.client.containers.run("arxivvanity/engrafo", command, remove=True, volumes=volumes)
+        self.client.containers.run("arxivvanity/engrafo:b3db888fefa118eacf4f13566204b68ce100b3a6", command, remove=True, volumes=volumes)
 
     # todo: check for errors
 
@@ -43,7 +43,7 @@ class LatexConverter:
             path.resolve(): ro_bind("/files/index.html"),
         }
 
-        command = "timeout -t 20 -s KILL chromium-browser --headless" \
+        command = "timeout -s KILL 20 chromium-browser --headless" \
                   " --disable-gpu --disable-software-rasterizer --no-sandbox" \
                   " --timeout=30000 --dump-dom /files/index.html"
         data = self.client.containers.run("zenika/alpine-chrome:73", command, remove=True, entrypoint="",
