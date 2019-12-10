@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 OUTNAME="$1"
 echo $OUTNAME
-RO_SOURCE_DIR="/files/ro-source"
+RO_SOURCE_DIR="${2:-/files/ro-source}"
 SOURCE_DIR="/files/source"
-OUTPUT_DIR="/files/htmls"
+OUTPUT_DIR="${3:-/files/htmls}"
 
+mkdir -p /files
 cp -r "$RO_SOURCE_DIR" "$SOURCE_DIR"
 
 # turn tikzpciture instances into comments
