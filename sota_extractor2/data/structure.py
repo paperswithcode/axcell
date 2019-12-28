@@ -191,9 +191,10 @@ def prepare_data(tables, csv_path, cache=False):
 
 
 class CellEvidenceExtractor:
-    def __init__(self):
+    def __init__(self, setup_connection=True):
         # todo: make sure can be called more than once or refactor to singleton
-        setup_default_connection()
+        if setup_connection:
+            setup_default_connection()
 
     def __call__(self, paper, tables, paper_limit=30, corpus_limit=10):
         dfs = [evidence_for_table(paper.paper_id, table, paper_limit, corpus_limit) for table in tables]
