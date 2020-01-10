@@ -8,6 +8,10 @@ class ULMFiT_SP:
         self.learner = load_learner(path=path, file=file)
         self._fix_sp_processor(sp_path, sp_model, sp_vocab)
 
+        # disable multiprocessing to avoid celery deamon issues
+        for dl in self.learner.data.dls:
+            dl.num_workers = 0
+
     def _fix_sp_processor(self, sp_path, sp_model, sp_vocab):
         for processor in self.learner.data.label_list.valid.x.processor:
             if isinstance(processor, SPProcessor):

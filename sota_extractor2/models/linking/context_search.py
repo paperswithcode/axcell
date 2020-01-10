@@ -138,7 +138,9 @@ datasets.update({
     'LibriSpeech dev-other': ['libri speech dev other', 'libri speech', 'dev', 'other', 'dev other', 'development', 'noisy'],
 })
 
-tasks = {}
+tasks = {
+    'Speech Recognition': ['speech recognition']
+}
 
 # escaped_ws_re = re.compile(r'\\\s+')
 # def name_to_re(name):
