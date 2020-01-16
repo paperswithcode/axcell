@@ -380,4 +380,5 @@ class DatasetExtractor:
         return self(text)
 
     def __call__(self, text):
-        return find_datasets(normalize_cell_ws(normalize_dataset(text)))
+        text = normalize_cell_ws(normalize_dataset(text))
+        return find_datasets(text) | find_tasks(text)
