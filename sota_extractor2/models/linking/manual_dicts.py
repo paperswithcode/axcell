@@ -107,14 +107,23 @@ datasets = {
     'SPA-DATA': ['spa-data'],
     'LasVR': ['lasvar'],
     # SEMANTIC SEGMENTATION
-    'PASCAL VOC 2012': ['voc 2012', 'pascal voc 2012'],
     'ADE20K': ['ade20k'],
+    'ADE20K test': ['ade20k test', 'ade20k', 'test'],
+
+    'COCO Stuff': ['coco stuff', 'coco', 'stuff'],
+    'PASCAL VOC 2012': ['voc 12', 'pascal voc 12', 'voc12' 'pascal'],
+    'PASCAL VOC 2012 test': ['voc 12', 'pascal voc 12', 'voc12' 'pascal'],
+    'PASCAL VOC 2011': ['voc 11', 'pascal voc 11', 'voc11' 'pascal'],
+    'PASCAL VOC 2011 test': ['voc 11', 'pascal voc 11', 'voc11', 'pascal'],
+
     'ImageNet': ['imagenet'],
-    'Cityscapes': ['cityscapes'],
-    'PASCAL-Context': ['pascal-context'],
-    'PASCAL-Person-Part': ['pascal-person-part'],
+    'Cityscapes test': ['cityscapes'],
+    'PASCAL Context': ['pascal context', 'pascal', 'context', 'pascalcontext', 'pascal-context'],
+    'PASCAL Context val': ['pascal context', 'pascal', 'context', 'pascalcontext', 'val', 'pascal-context'],
+    'PASCAL Person-Part': ['pascal person part'],
     'ParseNet': ['parsenet'],
     'LIP': ['lip'],
+    'SUN RGB-D': ['sun rgbd', 'sunrgbd', 'sunrgb d']
 }
 
 tasks = {
