@@ -174,7 +174,7 @@ proposal_columns = ['dataset', 'metric', 'task', 'format', 'raw_value', 'model',
                     'confidence', 'parsed', 'struct_model_type', 'struct_dataset']
 
 
-def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonomy_linking, datasets):
+def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonomy_linking, datasets, topk=1):
     # %%
     # Proposal generation
     def consume_cells(matrix):
@@ -217,11 +217,6 @@ def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonom
 
     def linked_proposals(proposals):
         for prop in proposals:
-            df = taxonomy_linking(prop.dataset, datasets, desc, debug_info=prop)
-            assert len(df) == 1
-
-            metric = df['metric'][0]
-
             # heuristyic to handle accuracy vs error
             first_num = (list(handle_pm(prop.raw_value)) + [0])[0]
             format = "{x}"
@@ -234,24 +229,27 @@ def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonom
             if '%' in prop.raw_value:
                 format += '%'
 
-            # if ("error" in metric or "Error" in metric) and (first_num > 0.5):
-            if (metric.strip().lower() == "error") and (first_num > 0.5):
-                metric = "Accuracy"
+            df = taxonomy_linking(prop.dataset, datasets, desc, topk=topk, debug_info=prop)
+            for _, row in df.iterrows():
+                metric = row['metric']
+                # if ("error" in metric or "Error" in metric) and (first_num > 0.5):
+                if (metric.strip().lower() == "error") and (first_num > 0.5):
+                    metric = "Accuracy"
 
-            linked = {
-                'dataset': df['dataset'][0],
-                'metric': metric,
-                'task': df['task'][0],
-                'format': format,
-                'raw_value': prop.raw_value,
-                'model': prop.model_name,
-                'model_type': prop.model_type,
-                'cell_ext_id': prop.cell.cell_ext_id,
-                'confidence': df['confidence'][0],
-                'struct_model_type': prop.model_type,
-                'struct_dataset': prop.dataset
-            }
-            yield linked
+                linked = {
+                    'dataset': row['dataset'],
+                    'metric': metric,
+                    'task': row['task'],
+                    'format': format,
+                    'raw_value': prop.raw_value,
+                    'model': prop.model_name,
+                    'model_type': prop.model_type,
+                    'cell_ext_id': prop.cell.cell_ext_id,
+                    'confidence': row['confidence'],
+                    'struct_model_type': prop.model_type,
+                    'struct_dataset': prop.dataset
+                }
+                yield linked
 
     # specify columns in case there's no proposal
 
@@ -264,7 +262,7 @@ def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonom
 
 
 def linked_proposals(paper_ext_id, paper, annotated_tables, taxonomy_linking=MatchSearch(),
-                     dataset_extractor=None):
+                     dataset_extractor=None, topk=1):
     #                     dataset_extractor=DatasetExtractor()):
     proposals = []
     datasets = dataset_extractor.from_paper(paper)
@@ -277,7 +275,11 @@ def linked_proposals(paper_ext_id, paper, annotated_tables, taxonomy_linking=Mat
         table_ext_id = f"{paper_ext_id}/{table.name}"
 
         if 'sota' in tags and 'no_sota_records' not in tags: # only parse tables that are marked as sota
-            proposals.append(generate_proposals_for_table(table_ext_id, matrix, structure, desc, taxonomy_linking, datasets))
+            proposals.append(
+                generate_proposals_for_table(
+                    table_ext_id, matrix, structure, desc, taxonomy_linking, datasets, topk=topk
+                )
+            )
     if len(proposals):
         return pd.concat(proposals)
     return pd.DataFrame(columns=proposal_columns)

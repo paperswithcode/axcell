@@ -308,7 +308,7 @@ class ContextSearch:
         probs = softmax(np.array(logprobs))
         return zip(keys, probs)
 
-    def __call__(self, query, datasets, caption, debug_info=None):
+    def __call__(self, query, datasets, caption, topk=1, debug_info=None):
         cellstr = debug_info.cell.cell_ext_id
         pipeline_logger("linking::taxonomy_linking::call", ext_id=cellstr, query=query, datasets=datasets, caption=caption)
         datasets = " ".join(datasets)
@@ -331,10 +331,10 @@ class ContextSearch:
             p = self.queries[key]
         else:
             dist = self.match(key)
-            topk = sorted(dist, key=lambda x: x[1], reverse=True)[0:5]
+            top_results = sorted(dist, key=lambda x: x[1], reverse=True)[:max(topk, 5)]
 
             entries = []
-            for it, prob in topk:
+            for it, prob in top_results:
                 task, dataset, metric = it
                 entry = dict(task=task, dataset=dataset, metric=metric)
                 entry.update({"evidence": "", "confidence": prob})
@@ -363,8 +363,8 @@ class ContextSearch:
             else:
                 print("[EA] No gold sota record found for the cell")
         # end of error analysis only
-        pipeline_logger("linking::taxonomy_linking::topk", ext_id=cellstr, topk=p)
-        return p.head(1)
+        pipeline_logger("linking::taxonomy_linking::topk", ext_id=cellstr, topk=p.head(5))
+        return p.head(topk)
 
 
 # todo: compare regex approach (old) with find_datasets(.) (current)
