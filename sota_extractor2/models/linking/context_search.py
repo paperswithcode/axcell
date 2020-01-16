@@ -13,134 +13,13 @@ from numba import njit, typed, types
 
 from sota_extractor2.pipeline_logger import pipeline_logger
 
-metrics = {
-    'BLEU': ['bleu'],
-    'BLEU score': ['bleu'],
-    'Character Error Rate': ['cer', 'cers'],
-    'Error': ['error'],
-    'Exact Match Ratio': ['exact match'],
-    'F1': ['f1', 'f1 score'],
-    'F1 score': ['f1', 'f1 score'],
-    'MAP': ['map'],
-    'Percentage error': ['wer', 'per', 'wers', 'pers', 'word error rate', 'word error rates', 'phoneme error rates',
-                         'phoneme error rate', 'error', 'error rate', 'error rates'],
-    'Word Error Rate': ['wer', 'wers', 'word error rate', 'word error rates', 'error', 'error rate', 'error rates'],
-    'Word Error Rate (WER)': ['wer', 'wers', 'word error rate', 'word error rates', 'error', 'error rate', 'error rates'],
-    'ROUGE-1': ['r1'],
-    'ROUGE-2': ['r2'],
-    'ROUGE-F': ['rf'],
-    'Precision': ['precision'],
-    'Recall': ['recall'],
-    # RAIN REMOVAL
-    'PSNR': ['psnr', 'psnr (db)', 'mean psnr'],
-    'SSIM': ['ssim'],
-    'UQI': ['uqi'],
-    'VIF': ['vif'],
-    'SSEQ': ['sseq'],
-    'NIQE': ['niqe'],
-    'BLINDS-II': ['blinds-ii'],
-    'FSIM': ['fsim'],
-    # SEMANTIC SEGMENTATION
-    'Mean iOU': ['miou', 'mean iou', 'mean iu'],
-    'Pixel Accuracy': ['pixel accuracy', 'pixel acc', 'pixel acc.'],
-    'Class iOU': ['class iou', 'iou cla.'],
-    'Category iOU': ['cat iou', 'iou cat.'],
-    'Class iiOU': ['class iiou', 'iiou cla.'],
-    'Category iiOU': ['cat iiou', 'iiou cat.'],
-}
-
-# datasets[taxonomy name] is a list of normalized evidences for taxonomy name
-datasets = {
-    'Hub5\'00 Average': ['avg', 'full', 'hub5', 'sum', 'evaluation'],
-    'Hub5\'00 Switchboard': ['swbd', 'swb', 'hub5 swb', 'hub5 swbd', 'switchboard'],
-    'Hub5\'00 CallHome': ['ch', 'hub5 ch', 'call home', 'chm'],
-    'TIMIT': ['timit'],
-    'WSJ eval92': ['wsj eval 92', 'eval 92', 'wsj'],
-    'WSJ eval93': ['wsj eval 93', 'eval 93', 'wsj'],
-    'LibriSpeech test-clean': ['libri speech test clean', 'libri speech', 'test', 'tst', 'clean', 'test clean'],
-    'LibriSpeech test-other': ['libri speech test other', 'libri speech', 'test', 'tst', 'other', 'test other',
-                               'noisy'],
-    'Babel Cebuano': ['babel cebuano', 'babel', 'cebuano', 'ceb'],
-    'Babel Kazakh': ['babel kazakh', 'babel', 'kazakh', 'kaz'],
-    'Babel Kurmanji': ['babel kurmanji', 'babel', 'kurmanji', 'kur'],
-    'Babel Lithuanian': ['babel lithuanian', 'babel', 'lithuanian', 'lit'],
-    'Babel Telugu': ['babel telugu', 'babel', 'telugu', 'tel'],
-    'Babel Tok Pisin': ['babel tok pisin', 'babel', 'tok pisin', 'tok'],
-
-    'Ask Ubuntu': ['ask ubuntu', 'ask u', 'ubuntu'],
-    'Chatbot': ['chatbot'],
-    'Web Apps': ['web apps'],
-    'CHiME clean': ['chime clean', 'chime', 'clean'],
-    'CHiME real': ['chime real', 'chime', 'real'],
-    'CHiME simu': ['chime simu', 'chime', 'simu', 'sim', 'simulated'],
-    'CHiME-4 real 6ch': ['chime 4 real 6 ch', 'chime 4', 'real', '6 channel'],
-    'AG News': ['ag news', 'ag'],
-    'GigaWord': ['gigaword', 'giga'],
-    'GEOTEXT': ['geotext', 'geo'],
-    'IWSLT 2015 English-Vietnamese': ["iwslt 2015 english vietnamese", "iwslt", "2015", "english vietnamese", "en vi",
-                                      "iwslt 15 english vietnamese", "iwslt 15 en vi", "english", "en", "vietnamese",
-                                      "vi"],
-    'IWSLT2011 English TED Talks': ["iwslt 2011 english ted talks", "iwslt", "2011", "english", "en", "eng", "ted",
-                                    "ted talks", "english ted talks"],
-    'IWSLT2012 English TED Talks': ["iwslt 2012 english ted talks", "iwslt", "2012", "english", "en", "eng", "ted",
-                                    "ted talks", "english ted talks"],
-    'IWSLT2014 English-German': ["iwslt 2014 english german", "iwslt", "2014", "english german", "en de", "en", "de",
-                                 "english", "german"],
-    'Rich Transcription 2002': ["rich transcription 2002", "rich transcription 02", "rt 2002", "2002", "rt 02", "rich",
-                                "transcription"],
-    'Rich Transcription 2003': ["richt ranscription 2003", "rich transcription 03", "rt 2003", "2003", "rt 03", "rich",
-                                "transcription"],
-    'Rich Transcription 2004': ["rich transcription 2004", "rich transcription 04", "rt 2004", "2004", "rt 04", "rich",
-                                "transcription"],
-    'DIRHA English WSJ real': ['dirha english wsj real', 'dirha', 'english', 'en', 'eng', 'real', 'wsj'],
-    'DIRHA English WSJ simu': ['dirha english wsj simu', 'dirha', 'english', 'en', 'eng', 'simu', 'wsj', 'simulated'],
-    'VCTK clean': ["vctk clean", "vctk", "clean"],
-    'VCTK noisy': ["vctk noisy", "vctk", "noisy"],
-    'VoxForge American-Canadian': ["vox forge american canadian", "vox forge", "vox", "forge", "american canadian",
-                                   "american", "canadian", "us ca"],
-    'VoxForge Commonwealth': ["vox forge common wealth", "vox forge", "common wealth", "vox", "forge", "common",
-                              "wealth"],
-    'VoxForge European': ["vox forge european", "vox forge", "european", "vox", "forge", "eu"],
-    'VoxForge Indian': ["vox forge indian", "vox forge", "indian", "vox", "forge"],
-    # RAIN REMOVAL
-    'Raindrop': ['raindrop'],
-    'Rain100H': ['rain100h'],
-    'Rain100L': ['rain100l'],
-    'Rain12': ['rain12'],
-    'Rain800': ['rain800'],
-    'Rain1400': ['rain1400'],
-    'Real Rain': ['real rain'],
-    'Rain in Surveillance': ['ris'],
-    'Rain in Driving': ['rid'],
-    'DID-MDN': ['did-mdn'],
-    'SOTS': ['sots'],
-    'Test 1': ['test 1'],
-    'RainSynLight25': ['rainsynlight25'],
-    'RainSynComplex25': ['rainsyncomplex25'],
-    'NTURain': ['nturain'],
-    'RainSynAll100': ['rainsynall100'],
-    'SPA-DATA': ['spa-data'],
-    'LasVR': ['lasvar'],
-    # SEMANTIC SEGMENTATION
-    'PASCAL VOC 2012': ['voc 2012', 'pascal voc 2012'],
-    'ADE20K': ['ade20k'],
-    'ImageNet': ['imagenet'],
-    'Cityscapes': ['cityscapes'],
-    'PASCAL-Context': ['pascal-context'],
-    'PASCAL-Person-Part': ['pascal-person-part'],
-    'ParseNet': ['parsenet'],
-    'LIP': ['lip'],
-}
+from sota_extractor2.models.linking.manual_dicts import metrics, datasets, tasks
 
 datasets = {k:(v+['test']) for k,v in datasets.items()}
 datasets.update({
     'LibriSpeech dev-clean': ['libri speech dev clean', 'libri speech', 'dev', 'clean', 'dev clean', 'development'],
     'LibriSpeech dev-other': ['libri speech dev other', 'libri speech', 'dev', 'other', 'dev other', 'development', 'noisy'],
 })
-
-tasks = {
-    'Speech Recognition': ['speech recognition']
-}
 
 # escaped_ws_re = re.compile(r'\\\s+')
 # def name_to_re(name):
