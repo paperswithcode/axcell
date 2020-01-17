@@ -21,7 +21,10 @@ class Linker:
             proposals = proposals.set_index('cell_ext_id')
             best = proposals
         else:
-            best = proposals.groupby('cell_ext_id').head(1).set_index('cell_ext_id')
+            best = self.get_best_proposals(proposals)
 
         pipeline_logger(f"{Linker.step}::linked", paper=paper, tables=tables, proposals=best)
         return proposals
+
+    def get_best_proposals(self, proposals):
+        return proposals.groupby('cell_ext_id').head(1).set_index('cell_ext_id')
