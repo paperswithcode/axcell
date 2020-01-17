@@ -26,12 +26,13 @@ metrics = {
     'BLINDS-II': ['blinds-ii'],
     'FSIM': ['fsim'],
     # SEMANTIC SEGMENTATION
-    'Mean iOU': ['miou', 'mean iou', 'mean iu'],
-    'Pixel Accuracy': ['pixel accuracy', 'pixel acc', 'pixel acc.'],
-    'Class iOU': ['class iou', 'iou cla.'],
-    'Category iOU': ['cat iou', 'iou cat.'],
-    'Class iiOU': ['class iiou', 'iiou cla.'],
-    'Category iiOU': ['cat iiou', 'iiou cat.'],
+    'Mean IoU': ['miou', 'mean iou', 'mean iu', 'class iou', 'iou cla', 'cla iou'],
+    'Pixel Accuracy': ['pixel accuracy', 'pixel acc', 'pixel acc.', 'pixacc', 'pixel'],
+    'Category IoU': ['cat iou', 'iou cat'],
+    'class iIoU': ['class iiou', 'iiou cla'],
+    'Category iIoU': ['cat iiou', 'iiou cat'],
+    'Mean Accuracy': ['mean acc', 'mean', 'acc']
+
 }
 
 # datasets[taxonomy name] is a list of normalized evidences for taxonomy name
@@ -126,6 +127,4 @@ datasets = {
     'SUN RGB-D': ['sun rgbd', 'sunrgbd', 'sunrgb d']
 }
 
-tasks = {
-    'Speech Recognition': ['speech recognition']
-}
+tasks = {}

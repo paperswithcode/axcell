@@ -3,7 +3,7 @@ from collections import Counter
 
 from sota_extractor2.models.linking.acronym_extractor import AcronymExtractor
 from sota_extractor2.models.linking.probs import get_probs, reverse_probs
-from sota_extractor2.models.linking.utils import normalize_dataset, normalize_cell, normalize_cell_ws
+from sota_extractor2.models.linking.utils import normalize_dataset, normalize_dataset_ws, normalize_cell, normalize_cell_ws
 from scipy.special import softmax
 import re
 import pandas as pd
@@ -13,81 +13,95 @@ from numba import njit, typed, types
 
 from sota_extractor2.pipeline_logger import pipeline_logger
 
-from sota_extractor2.models.linking.manual_dicts import metrics, datasets, tasks
-
-datasets = {k:(v+['test']) for k,v in datasets.items()}
-datasets.update({
-    'LibriSpeech dev-clean': ['libri speech dev clean', 'libri speech', 'dev', 'clean', 'dev clean', 'development'],
-    'LibriSpeech dev-other': ['libri speech dev other', 'libri speech', 'dev', 'other', 'dev other', 'development', 'noisy'],
-})
-
-# escaped_ws_re = re.compile(r'\\\s+')
-# def name_to_re(name):
-#     return re.compile(r'(?:^|\s+)' + escaped_ws_re.sub(r'\\s*', re.escape(name.strip())) + r'(?:$|\s+)', re.I)
-
-#all_datasets = set(k for k,v in merged_p.items() if k != '' and not re.match("^\d+$", k) and v.get('NOMATCH', 0.0) < 0.9)
-all_datasets = set(normalize_cell_ws(normalize_dataset(y)) for x in datasets.values() for y in x)
-all_metrics = set(normalize_cell_ws(y) for x in metrics.values() for y in x)
-all_tasks = set(normalize_cell_ws(normalize_dataset(y)) for x in tasks.values() for y in x)
-
-#all_metrics = set(metrics_p.keys())
-
-# all_datasets_re = {x:name_to_re(x) for x in all_datasets}
-# all_metrics_re = {x:name_to_re(x) for x in all_metrics}
-#all_datasets = set(x for v in merged_p.values() for x in v)
-
-# def find_names(text, names_re):
-#     return set(name for name, name_re in names_re.items() if name_re.search(text))
-
-
-def make_trie(names):
-    trie = ahocorasick.Automaton()
-    for name in names:
-        norm = name.replace(" ", "")
-        trie.add_word(norm, (len(norm), name))
-    trie.make_automaton()
-    return trie
-
-
-single_letter_re = re.compile(r"\b\w\b")
-init_letter_re = re.compile(r"\b\w")
-end_letter_re = re.compile(r"\w\b")
-letter_re = re.compile(r"\w")
-
-
-def find_names(text, names_trie):
-    text = text.lower()
-    profile = letter_re.sub("i", text)
-    profile = init_letter_re.sub("b", profile)
-    profile = end_letter_re.sub("e", profile)
-    profile = single_letter_re.sub("x", profile)
-    text = text.replace(" ", "")
-    profile = profile.replace(" ", "")
-    s = set()
-    for (end, (l, word)) in names_trie.iter(text):
-        if profile[end] in ['e', 'x'] and profile[end - l + 1] in ['b', 'x']:
-            s.add(word)
-    return s
-
-
-all_datasets_trie = make_trie(all_datasets)
-all_metrics_trie = make_trie(all_metrics)
-all_tasks_trie = make_trie(all_tasks)
-
-
-def find_datasets(text):
-    return find_names(text, all_datasets_trie)
-
-def find_metrics(text):
-    return find_names(text, all_metrics_trie)
-
-def find_tasks(text):
-    return find_names(text, all_tasks_trie)
+from sota_extractor2.models.linking import manual_dicts
 
 def dummy_item(reason):
     return pd.DataFrame(dict(dataset=[reason], task=[reason], metric=[reason], evidence=[""], confidence=[0.0]))
 
 
+class EvidenceFinder:
+    single_letter_re = re.compile(r"\b\w\b")
+    init_letter_re = re.compile(r"\b\w")
+    end_letter_re = re.compile(r"\w\b")
+    letter_re = re.compile(r"\w")
+
+    def __init__(self, taxonomy):
+        self._init_structs(taxonomy)
+
+    @staticmethod
+    def evidences_from_name(key):
+        x = normalize_dataset_ws(key)
+        y = x.split()
+        return [x] + y if len(y) > 1 else [x]
+
+    @staticmethod
+    def get_basic_dicts(taxonomy):
+        tasks = {ts: [normalize_dataset_ws(ts)] for ts in taxonomy.tasks}
+        datasets = {ds: EvidenceFinder.evidences_from_name(ds) for ds in taxonomy.datasets}
+        metrics = {ms: EvidenceFinder.evidences_from_name(ms) for ms in taxonomy.metrics}
+        return tasks, datasets, metrics
+
+    @staticmethod
+    def merge_evidences(target, source):
+        for name, evs in source.items():
+            target.setdefault(name, []).extend(evs)
+
+    @staticmethod
+    def make_trie(names):
+        trie = ahocorasick.Automaton()
+        for name in names:
+            norm = name.replace(" ", "")
+            trie.add_word(norm, (len(norm), name))
+        trie.make_automaton()
+        return trie
+
+    @staticmethod
+    def find_names(text, names_trie):
+        text = text.lower()
+        profile = EvidenceFinder.letter_re.sub("i", text)
+        profile = EvidenceFinder.init_letter_re.sub("b", profile)
+        profile = EvidenceFinder.end_letter_re.sub("e", profile)
+        profile = EvidenceFinder.single_letter_re.sub("x", profile)
+        text = text.replace(" ", "")
+        profile = profile.replace(" ", "")
+        s = set()
+        for (end, (l, word)) in names_trie.iter(text):
+            if profile[end] in ['e', 'x'] and profile[end - l + 1] in ['b', 'x']:
+                s.add(word)
+        return s
+
+    def find_datasets(self, text):
+        return EvidenceFinder.find_names(text, self.all_datasets_trie)
+
+    def find_metrics(self, text):
+        return EvidenceFinder.find_names(text, self.all_metrics_trie)
+
+    def find_tasks(self, text):
+        return EvidenceFinder.find_names(text, self.all_tasks_trie)
+
+    def _init_structs(self, taxonomy):
+        self.tasks, self.datasets, self.metrics = EvidenceFinder.get_basic_dicts(taxonomy)
+        EvidenceFinder.merge_evidences(self.tasks, manual_dicts.tasks)
+        EvidenceFinder.merge_evidences(self.datasets, manual_dicts.datasets)
+        EvidenceFinder.merge_evidences(self.metrics, manual_dicts.metrics)
+        self.datasets = {k: (v + ['test'] if 'val' not in k else v + ['validation', 'dev', 'development']) for k, v in
+                    self.datasets.items()}
+        self.datasets.update({
+            'LibriSpeech dev-clean': ['libri speech dev clean', 'libri speech', 'dev', 'clean', 'dev clean', 'development'],
+            'LibriSpeech dev-other': ['libri speech dev other', 'libri speech', 'dev', 'other', 'dev other', 'development', 'noisy'],
+        })
+
+        self.datasets = {k: set(v) for k, v in self.datasets.items()}
+        self.metrics = {k: set(v) for k, v in self.metrics.items()}
+        self.tasks = {k: set(v) for k, v in self.tasks.items()}
+
+        self.all_datasets = set(normalize_cell_ws(normalize_dataset(y)) for x in self.datasets.values() for y in x)
+        self.all_metrics = set(normalize_cell_ws(y) for x in self.metrics.values() for y in x)
+        self.all_tasks = set(normalize_cell_ws(normalize_dataset(y)) for x in self.tasks.values() for y in x)
+
+        self.all_datasets_trie = EvidenceFinder.make_trie(self.all_datasets)
+        self.all_metrics_trie = EvidenceFinder.make_trie(self.all_metrics)
+        self.all_tasks_trie = EvidenceFinder.make_trie(self.all_tasks)
 
 @njit
 def compute_logprobs(taxonomy, reverse_merged_p, reverse_metrics_p, reverse_task_p,
@@ -114,17 +128,18 @@ def compute_logprobs(taxonomy, reverse_merged_p, reverse_metrics_p, reverse_task
 
 
 class ContextSearch:
-    def __init__(self, taxonomy, context_noise=(0.5, 0.2, 0.1), metrics_noise=None, task_noise=None,
+    def __init__(self, taxonomy, evidence_finder, context_noise=(0.5, 0.2, 0.1), metrics_noise=None, task_noise=None,
                  ds_pb=0.001, ms_pb=0.01, ts_pb=0.01, debug_gold_df=None):
         merged_p = \
-        get_probs({k: Counter([normalize_cell(normalize_dataset(x)) for x in v]) for k, v in datasets.items()})[1]
+        get_probs({k: Counter([normalize_cell(normalize_dataset(x)) for x in v]) for k, v in evidence_finder.datasets.items()})[1]
         metrics_p = \
-        get_probs({k: Counter([normalize_cell(normalize_dataset(x)) for x in v]) for k, v in metrics.items()})[1]
+        get_probs({k: Counter([normalize_cell(normalize_dataset(x)) for x in v]) for k, v in evidence_finder.metrics.items()})[1]
         tasks_p = \
-        get_probs({k: Counter([normalize_cell(normalize_dataset(x)) for x in v]) for k, v in tasks.items()})[1]
+        get_probs({k: Counter([normalize_cell(normalize_dataset(x)) for x in v]) for k, v in evidence_finder.tasks.items()})[1]
 
         self.queries = {}
         self.taxonomy = taxonomy
+        self.evidence_finder = evidence_finder
         self._taxonomy = typed.List()
         for t in self.taxonomy.taxonomy:
             self._taxonomy.append(t)
@@ -158,9 +173,9 @@ class ContextSearch:
         context = context or ""
         abbrvs = self.extract_acronyms(context)
         context = normalize_cell_ws(normalize_dataset(context))
-        dss = set(find_datasets(context)) | set(abbrvs.keys())
-        mss = set(find_metrics(context))
-        tss = set(find_tasks(context))
+        dss = set(self.evidence_finder.find_datasets(context)) | set(abbrvs.keys())
+        mss = set(self.evidence_finder.find_metrics(context))
+        tss = set(self.evidence_finder.find_tasks(context))
         dss -= mss
         dss -= tss
         dss = [normalize_cell(ds) for ds in dss]
@@ -248,7 +263,8 @@ class ContextSearch:
 
 # todo: compare regex approach (old) with find_datasets(.) (current)
 class DatasetExtractor:
-    def __init__(self):
+    def __init__(self, evidence_finder):
+        self.evidence_finder = evidence_finder
         self.dataset_prefix_re = re.compile(r"[A-Z]|[a-z]+[A-Z]+|[0-9]")
         self.dataset_name_re = re.compile(r"\b(the)\b\s*(?P<name>((?!(the)\b)\w+\W+){1,10}?)(test|val(\.|idation)?|dev(\.|elopment)?|train(\.|ing)?\s+)?\bdata\s*set\b", re.IGNORECASE)
 
@@ -260,4 +276,4 @@ class DatasetExtractor:
 
     def __call__(self, text):
         text = normalize_cell_ws(normalize_dataset(text))
-        return find_datasets(text) | find_tasks(text)
+        return self.evidence_finder.find_datasets(text) | self.evidence_finder.find_tasks(text)
