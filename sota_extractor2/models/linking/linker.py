@@ -17,14 +17,10 @@ class Linker:
                                      dataset_extractor=self.dataset_extractor,
                                      topk=topk)
 
-        if topk == 1:
-            proposals = proposals.set_index('cell_ext_id')
-            best = proposals
-        else:
-            best = self.get_best_proposals(proposals)
+        proposals = proposals.set_index('cell_ext_id')
 
-        pipeline_logger(f"{Linker.step}::linked", paper=paper, tables=tables, proposals=best)
+        pipeline_logger(f"{Linker.step}::linked", paper=paper, tables=tables, proposals=proposals)
         return proposals
 
     def get_best_proposals(self, proposals):
-        return proposals.groupby('cell_ext_id').head(1).set_index('cell_ext_id')
+        return proposals.groupby('cell_ext_id').head(1)
