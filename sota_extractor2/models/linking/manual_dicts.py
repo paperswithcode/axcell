@@ -63,7 +63,7 @@ datasets = {
     'AG News': ['ag news', 'ag'],
     'GigaWord': ['gigaword', 'giga'],
     'GEOTEXT': ['geotext', 'geo'],
-    'IWSLT 2015 English-Vietnamese': ["iwslt 2015 english vietnamese", "iwslt", "2015", "english vietnamese", "en vi",
+    'IWSLT2015 English-Vietnamese': ["iwslt 2015 english vietnamese", "iwslt", "2015", "english vietnamese", "en vi",
                                       "iwslt 15 english vietnamese", "iwslt 15 en vi", "english", "en", "vietnamese",
                                       "vi"],
     'IWSLT2011 English TED Talks': ["iwslt 2011 english ted talks", "iwslt", "2011", "english", "en", "eng", "ted",
@@ -80,14 +80,26 @@ datasets = {
                                 "transcription"],
     'DIRHA English WSJ real': ['dirha english wsj real', 'dirha', 'english', 'en', 'eng', 'real', 'wsj'],
     'DIRHA English WSJ simu': ['dirha english wsj simu', 'dirha', 'english', 'en', 'eng', 'simu', 'wsj', 'simulated'],
-    'VCTK clean': ["vctk clean", "vctk", "clean"],
-    'VCTK noisy': ["vctk noisy", "vctk", "noisy"],
+    'VCTK clean': ["vctk clean", "vctk", "clean", "voice bank", "voice", "bank", "corpus"],
+    'VCTK noisy': ["vctk noisy", "vctk", "noisy", "voice bank", "voice", "bank", "corpus"],
     'VoxForge American-Canadian': ["vox forge american canadian", "vox forge", "vox", "forge", "american canadian",
                                    "american", "canadian", "us ca"],
     'VoxForge Commonwealth': ["vox forge common wealth", "vox forge", "common wealth", "vox", "forge", "common",
                               "wealth"],
     'VoxForge European': ["vox forge european", "vox forge", "european", "vox", "forge", "eu"],
     'VoxForge Indian': ["vox forge indian", "vox forge", "indian", "vox", "forge"],
+
+    # Face Alignment
+    'AFLW test': ['annotated faces in the wild', 'annotated facial landmarks in the wild', 'facial', 'landmark',
+                  'annotated', 'faces', 'in the wild', 'faces in the wild'],
+
+    # Human Part Segmentation
+    'CIHP val': ['crowd instance level human parsing'],
+    'MHP v2.0 val': ['multi human parsing'],
+
+    # Image Generation
+    # 'LSUN Bedroom': ['large scale scene understanding'],
+
     # RAIN REMOVAL
     'Raindrop': ['raindrop'],
     'Rain100H': ['rain100h'],
@@ -111,7 +123,7 @@ datasets = {
     'ADE20K': ['ade20k'],
     'ADE20K test': ['ade20k test', 'ade20k', 'test'],
 
-    'COCO Stuff': ['coco stuff', 'coco', 'stuff'],
+    'COCO-Stuff': ['coco stuff', 'coco', 'stuff'],
     'PASCAL VOC 2012': ['voc 12', 'pascal voc 12', 'voc12' 'pascal'],
     'PASCAL VOC 2012 test': ['voc 12', 'pascal voc 12', 'voc12' 'pascal'],
     'PASCAL VOC 2011': ['voc 11', 'pascal voc 11', 'voc11' 'pascal'],
@@ -124,7 +136,20 @@ datasets = {
     'PASCAL Person-Part': ['pascal person part'],
     'ParseNet': ['parsenet'],
     'LIP': ['lip'],
-    'SUN RGB-D': ['sun rgbd', 'sunrgbd', 'sunrgb d']
+    'SUN-RGBD': ['sun rgbd', 'sunrgbd', 'sunrgb d'],
+    'NYU Depth v2': ['nyudv2'],
+
+    # Gender Classification
+    'LFWA': ['labeled faces in the wild', 'faces in the wild', 'faces', 'in the wild'],
+
+    # Recommendation Systems
+    'NeurIPS Co-authorship': ['nips'],
+
+    # Sentiment Analysis
+    'Pang and Lee 2004': ['pl04'],
+
+    # Semantic Textual Similarity
+    'STS Benchmark': ['sts b'],
 }
 
 tasks = {}
