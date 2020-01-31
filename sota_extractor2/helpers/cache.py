@@ -1,5 +1,6 @@
 import pandas as pd
 import json
+from collections import defaultdict
 
 
 # these functions are used to cache various results
@@ -32,7 +33,12 @@ def save_structure(structure, path):
 
 
 def load_proposals(path):
-    proposals = pd.read_csv(path, index_col=0)
+    dtypes = defaultdict(lambda: str)
+    dtypes['confidence'] = float
+    dtypes['parsed'] = float
+
+    na_values = {'confidence': '', 'parsed': ''}
+    proposals = pd.read_csv(path, index_col=0, dtype=dtypes, na_values=na_values, keep_default_na=False)
     return proposals
 
 
