@@ -117,12 +117,18 @@ def axis_logprobs(evidences_for, reverse_probs, found_evidences, noise, pb):
 @njit
 def compute_logprobs(taxonomy, reverse_merged_p, reverse_metrics_p, reverse_task_p,
                      dss, mss, tss, noise, ms_noise, ts_noise, ds_pb, ms_pb, ts_pb, logprobs):
+    task_cache = typed.Dict.empty(types.unicode_type, types.float64)
+    dataset_cache = typed.Dict.empty(types.unicode_type, types.float64)
+    metric_cache = typed.Dict.empty(types.unicode_type, types.float64)
     for i, (task, dataset, metric) in enumerate(taxonomy):
-        logprob = 0.0
-        logprob += axis_logprobs(dataset, reverse_merged_p, dss, noise, ds_pb)
-        logprob += axis_logprobs(metric, reverse_metrics_p, mss, ms_noise, ms_pb)
-        logprob += axis_logprobs(task, reverse_task_p, tss, ts_noise, ts_pb)
-        logprobs[i] += logprob
+        if dataset not in dataset_cache:
+            dataset_cache[dataset] = axis_logprobs(dataset, reverse_merged_p, dss, noise, ds_pb)
+        if metric not in metric_cache:
+            metric_cache[metric] = axis_logprobs(metric, reverse_metrics_p, mss, ms_noise, ms_pb)
+        if task not in task_cache:
+            task_cache[task] = axis_logprobs(task, reverse_task_p, tss, ts_noise, ts_pb)
+
+        logprobs[i] = dataset_cache[dataset] + metric_cache[metric] + task_cache[task]
 
 
 class ContextSearch:
