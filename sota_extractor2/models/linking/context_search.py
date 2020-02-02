@@ -103,23 +103,26 @@ class EvidenceFinder:
         self.all_metrics_trie = EvidenceFinder.make_trie(self.all_metrics)
         self.all_tasks_trie = EvidenceFinder.make_trie(self.all_tasks)
 
+
+@njit(inline="always")
+def axis_logprobs(evidences_for, reverse_probs, found_evidences, noise, pb):
+    logprob = 0.0
+    empty = typed.Dict.empty(types.unicode_type, types.float64)
+    short_probs = reverse_probs.get(evidences_for, empty)
+    for evidence in found_evidences:
+        logprob += np.log(noise * pb + (1 - noise) * short_probs.get(evidence, 0.0))
+    return logprob
+
+
 @njit
 def compute_logprobs(taxonomy, reverse_merged_p, reverse_metrics_p, reverse_task_p,
                      dss, mss, tss, noise, ms_noise, ts_noise, ds_pb, ms_pb, ts_pb, logprobs):
-    empty = typed.Dict.empty(types.unicode_type, types.float64)
     for i, (task, dataset, metric) in enumerate(taxonomy):
         logprob = 0.0
-        short_probs = reverse_merged_p.get(dataset, empty)
-        for ds in dss:
-            logprob += np.log(noise * ds_pb + (1 - noise) * short_probs.get(ds, 0.0))
-        met_probs = reverse_metrics_p.get(metric, empty)
-        for ms in mss:
-            logprob += np.log(ms_noise * ms_pb + (1 - ms_noise) * met_probs.get(ms, 0.0))
-        task_probs = reverse_task_p.get(task, empty)
-        for ts in tss:
-            logprob += np.log(ts_noise * ts_pb + (1 - ts_noise) * task_probs.get(ts, 0.0))
+        logprob += axis_logprobs(dataset, reverse_merged_p, dss, noise, ds_pb)
+        logprob += axis_logprobs(metric, reverse_metrics_p, mss, ms_noise, ms_pb)
+        logprob += axis_logprobs(task, reverse_task_p, tss, ts_noise, ts_pb)
         logprobs[i] += logprob
-        #logprobs[(dataset, metric)] = logprob
 
 
 class ContextSearch:
