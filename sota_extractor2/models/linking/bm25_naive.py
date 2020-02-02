@@ -191,8 +191,7 @@ def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonom
             if type in structure[nr, c]:
                 yield Value(structure[nr, c], matrix[nr, c])
 
-
-    number_re = re.compile(r'^[± Ee /()^0-9.%±_-]{2,}$')
+    number_re = re.compile(r'^[± Ee/()^0-9.%,_+-]{2,}$')
 
     proposals = [Proposal(
         cell=Cell(cell_ext_id=f"{table_ext_id}/{r}.{c}",
