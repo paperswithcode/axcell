@@ -29,7 +29,8 @@ def format_to_regexp(format):
     return re.compile('^' + regexp), fn
 
 def extract_value(cell_value, format):
-    cell_value = re.sub(r"\s+%", "%", cell_value).replace(",", "").strip()
+    cell_value = re.sub(r"\s+%", "%", cell_value).replace(",", "")
+    cell_value = cell_value.replace("(", " ").replace(")", " ").strip()
     regexp, fn = format_to_regexp(format)
     match = regexp.match(cell_value)
     if match is None or not len(match.groups()):

@@ -230,33 +230,32 @@ def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonom
 
             df = taxonomy_linking(prop.dataset, datasets, desc, topk=topk, debug_info=prop)
             for _, row in df.iterrows():
+                raw_value = prop.raw_value
+                parsed = float(extract_value(raw_value, format))
                 metric = row['metric']
-                # if ("error" in metric or "Error" in metric) and (first_num > 0.5):
-                if (metric.strip().lower() == "error") and (first_num > 0.5):
-                    metric = "Accuracy"
+                if metric != row['true_metric']:
+                    metric = row['true_metric']
+                    parsed = 1 - parsed if parsed < 1 else 100 - parsed
 
                 linked = {
                     'dataset': row['dataset'],
                     'metric': metric,
                     'task': row['task'],
                     'format': format,
-                    'raw_value': prop.raw_value,
+                    'raw_value': raw_value,
                     'model': prop.model_name,
                     'model_type': prop.model_type,
                     'cell_ext_id': prop.cell.cell_ext_id,
                     'confidence': row['confidence'],
                     'struct_model_type': prop.model_type,
-                    'struct_dataset': prop.dataset
+                    'struct_dataset': prop.dataset,
+                    'parsed': parsed
                 }
                 yield linked
 
     # specify columns in case there's no proposal
 
     proposals = pd.DataFrame.from_records(list(linked_proposals(proposals)), columns=proposal_columns)
-
-    if len(proposals):
-        proposals["parsed"]=proposals[["raw_value", "format"]].apply(
-            lambda row: float(extract_value(row.raw_value, row.format)), axis=1)
     return proposals
 
 

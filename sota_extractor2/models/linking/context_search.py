@@ -104,7 +104,7 @@ class EvidenceFinder:
         self.all_tasks_trie = EvidenceFinder.make_trie(self.all_tasks)
 
 
-@njit(inline="always")
+@njit
 def axis_logprobs(evidences_for, reverse_probs, found_evidences, noise, pb):
     logprob = 0.0
     empty = typed.Dict.empty(types.unicode_type, types.float64)
@@ -114,6 +114,7 @@ def axis_logprobs(evidences_for, reverse_probs, found_evidences, noise, pb):
     return logprob
 
 
+# compute log-probabilities in a given context and add them to logprobs
 @njit
 def compute_logprobs(taxonomy, reverse_merged_p, reverse_metrics_p, reverse_task_p,
                      dss, mss, tss, noise, ms_noise, ts_noise, ds_pb, ms_pb, ts_pb, logprobs):
@@ -128,7 +129,7 @@ def compute_logprobs(taxonomy, reverse_merged_p, reverse_metrics_p, reverse_task
         if task not in task_cache:
             task_cache[task] = axis_logprobs(task, reverse_task_p, tss, ts_noise, ts_pb)
 
-        logprobs[i] = dataset_cache[dataset] + metric_cache[metric] + task_cache[task]
+        logprobs[i] += dataset_cache[dataset] + metric_cache[metric] + task_cache[task]
 
 
 class ContextSearch:
@@ -262,7 +263,10 @@ class ContextSearch:
                 print("[EA] No gold sota record found for the cell")
         # end of error analysis only
         pipeline_logger("linking::taxonomy_linking::topk", ext_id=cellstr, topk=p.head(5))
-        return p.head(topk)
+
+        q = p.head(topk).copy()
+        q["true_metric"] = q.apply(lambda row: self.taxonomy.normalize_metric(row.task, row.dataset, row.metric), axis=1)
+        return q
 
 
 # todo: compare regex approach (old) with find_datasets(.) (current)

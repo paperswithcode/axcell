@@ -1,8 +1,9 @@
 metrics = {
+    'Accuracy': ['acc', 'accuracy'],
     'BLEU': ['bleu'],
     'BLEU score': ['bleu'],
     'Character Error Rate': ['cer', 'cers'],
-    'Error': ['error'],
+    'Error': ['error', 'err', 'error rate'],
     'Exact Match Ratio': ['exact match'],
     'F1': ['f1', 'f1 score'],
     'F1 score': ['f1', 'f1 score'],
@@ -11,6 +12,7 @@ metrics = {
                          'phoneme error rate', 'error', 'error rate', 'error rates'],
     'Word Error Rate': ['wer', 'wers', 'word error rate', 'word error rates', 'error', 'error rate', 'error rates'],
     'Word Error Rate (WER)': ['wer', 'wers', 'word error rate', 'word error rates', 'error', 'error rate', 'error rates'],
+    'Word Accuracy': ['accuracy', 'word accuracy', 'acc', 'word acc'],
     'ROUGE-1': ['r1'],
     'ROUGE-2': ['r2'],
     'ROUGE-F': ['rf'],
@@ -31,8 +33,12 @@ metrics = {
     'Category IoU': ['cat iou', 'iou cat'],
     'class iIoU': ['class iiou', 'iiou cla'],
     'Category iIoU': ['cat iiou', 'iiou cat'],
-    'Mean Accuracy': ['mean acc', 'mean', 'acc']
-
+    'Mean Accuracy': ['mean acc', 'mean', 'acc', 'accuracy', 'mean accuracy'],
+    'Mean Error': ['mean err', 'mean', 'err', 'mean error', 'error'],
+    'Top-1 Accuracy': ['top 1 accuracy', 'top 1', 'top 1 acc'],
+    'Top-5 Accuracy': ['top 5 accuracy', 'top 5', 'top 5 acc'],
+    'Top-1 Error Rate': ['top 1 error', 'top 1', 'top 1 err'],
+    'Top-5 Error': ['top 5 error', 'top 5', 'top 5 err']
 }
 
 # datasets[taxonomy name] is a list of normalized evidences for taxonomy name
@@ -153,3 +159,13 @@ datasets = {
 }
 
 tasks = {}
+
+complementary_metrics = {
+    'Accuracy': 'Error',
+    'Error': 'Accuracy',
+    'Percentage Error': 'Accuracy',
+    'Word Error Rate': 'Word Accuracy',
+    'Word Error Rate (WER)': 'Word Accuracy',
+    'Top-1 Accuracy': 'Top-1 Error Rate',
+    'Top-5 Accuracy': 'Top-5 Error',
+}
