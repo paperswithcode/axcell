@@ -231,11 +231,12 @@ def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonom
             df = taxonomy_linking(prop.dataset, datasets, desc, topk=topk, debug_info=prop)
             for _, row in df.iterrows():
                 raw_value = prop.raw_value
-                parsed = float(extract_value(raw_value, format))
+                parsed = extract_value(raw_value, format)
                 metric = row['metric']
                 if metric != row['true_metric']:
                     metric = row['true_metric']
                     parsed = 1 - parsed if parsed < 1 else 100 - parsed
+                parsed = float(parsed)
 
                 linked = {
                     'dataset': row['dataset'],

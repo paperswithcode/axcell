@@ -211,7 +211,7 @@ class ContextSearch:
         cellstr = debug_info.cell.cell_ext_id
         pipeline_logger("linking::taxonomy_linking::call", ext_id=cellstr, query=query, datasets=datasets, caption=caption)
         datasets = " ".join(datasets)
-        key = (datasets, caption, query)
+        key = (datasets, caption, query, topk)
         ###print(f"[DEBUG] {cellstr}")
         ###print("[DEBUG]", debug_info)
         ###print("query:", query, caption)
@@ -229,7 +229,7 @@ class ContextSearch:
             ###print("Taking result from cache")
             p = self.queries[key]
         else:
-            dist = self.match(key)
+            dist = self.match((datasets, caption, query))
             top_results = sorted(dist, key=lambda x: x[1], reverse=True)[:max(topk, 5)]
 
             entries = []

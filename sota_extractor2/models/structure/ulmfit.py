@@ -6,6 +6,9 @@ class ULMFiT_SP:
         path = Path(path)
         sp_path = path if sp_path is None else Path(sp_path)
         self.learner = load_learner(path=path, file=file)
+        import sys, os
+        print(f"[PID {os.getpid()}] Load model {file}", file=sys.stderr)
+        sys.stderr.flush()
         self._fix_sp_processor(sp_path, sp_model, sp_vocab)
 
         # disable multiprocessing to avoid celery deamon issues

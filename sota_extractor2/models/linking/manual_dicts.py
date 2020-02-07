@@ -156,6 +156,9 @@ datasets = {
 
     # Semantic Textual Similarity
     'STS Benchmark': ['sts b'],
+
+    # Paraphrase Identification
+    'Microsoft Research Paraphrase Corpus': ['MRPC'],
 }
 
 tasks = {}
