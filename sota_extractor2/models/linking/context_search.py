@@ -31,7 +31,7 @@ class EvidenceFinder:
     @staticmethod
     def evidences_from_name(key):
         x = normalize_dataset_ws(key)
-        y = x.split()
+        y = [w for w in x.split() if w not in manual_dicts.stop_words]
         return [x] + y if len(y) > 1 else [x]
 
     @staticmethod

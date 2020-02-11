@@ -172,3 +172,11 @@ complementary_metrics = {
     'Top-1 Accuracy': 'Top-1 Error Rate',
     'Top-5 Accuracy': 'Top-5 Error',
 }
+
+stop_words = {
+    "a", "an", "and", "are", "as", "at", "be", "but", "by",
+    "for", "if", "in", "into", "is", "it",
+    "no", "not", "of", "on", "or", "such",
+    "that", "the", "their", "then", "there", "these",
+    "they", "this", "to", "was", "will", "with"
+}
