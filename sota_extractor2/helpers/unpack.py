@@ -25,7 +25,7 @@ class Unpack:
                 tar.extractall(dest)
         elif mime == 'text/x-tex':
             dest.mkdir(parents=True, exist_ok=True)
-            with gzip.open(source, "rb") as src, open(dest / "main.tex") as dst:
+            with gzip.open(source, "rb") as src, open(dest / "main.tex", "wb") as dst:
                 copyfileobj(src, dst)
         else:
             raise UnpackError(f"Cannot unpack file of type {mime}")
