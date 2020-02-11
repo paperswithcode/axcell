@@ -24,6 +24,9 @@ do
 done
 
 MAINTEX=$(python3 /files/guess_main.py "$SOURCE_DIR")
+[ ! -f "$MAINTEX" ] && exit 1
+
 timeout -s KILL 300 engrafo "$MAINTEX" /files/output
 
+[ ! -f /files/output/index.html ] && exit 117
 cp /files/output/index.html "$OUTPUT_DIR/$OUTNAME"

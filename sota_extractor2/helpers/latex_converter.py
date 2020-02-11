@@ -12,6 +12,11 @@ def ro_bind(path): return dict(bind=path, mode='ro')
 def rw_bind(path): return dict(bind=path, mode='rw')
 
 
+# magic constant used in latex2html.sh to signal that
+# conversion failed on LaTeXML step
+MAGIC_EXIT_ERROR = 117
+
+
 class LatexConverter:
     def __init__(self, base_path):
         # pull arxivvanity/engrafo image
@@ -48,7 +53,13 @@ class LatexConverter:
             command = [scriptname, filename]
 
         output_dir.mkdir(parents=True, exist_ok=True)
-        self.client.containers.run("arxivvanity/engrafo:b3db888fefa118eacf4f13566204b68ce100b3a6", command, remove=True, volumes=volumes)
+
+        try:
+            self.client.containers.run("arxivvanity/engrafo:b3db888fefa118eacf4f13566204b68ce100b3a6", command, remove=True, volumes=volumes)
+        except ContainerError as err:
+            if err.exit_status == MAGIC_EXIT_ERROR:
+                raise LatexConversionError("LaTeXML was unable to convert source code of this paper")
+            raise
 
     # todo: check for errors
 
