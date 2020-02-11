@@ -21,10 +21,10 @@ class Taxonomy:
         with open(path, "rt") as f:
             return json.load(f)
 
-    def _get_complementary_metrics(self, records):
+    def _get_complementary_metrics(self):
         complementary = []
         self._complementary = {}
-        for record in records:
+        for record in self.canonical_records:
             metric = record["metric"]
             if metric in complementary_metrics:
                 task = record["task"]
@@ -42,12 +42,12 @@ class Taxonomy:
         return complementary
 
     def _get_taxonomy(self, path):
-        records = self._read_json(path)
-        self._records = records + self._get_complementary_metrics(records)
-        return [(r["task"], r["dataset"], r["metric"]) for r in self._records]
+        self.canonical_records = self._read_json(path)
+        self.records = self.canonical_records + self._get_complementary_metrics()
+        return [(r["task"], r["dataset"], r["metric"]) for r in self.records]
 
     def _get_axis(self, axis):
-        return set(x[axis] for x in self._records)
+        return set(x[axis] for x in self.records)
 
     def _read_metrics_info(self, path):
         records = self._read_json(path)
