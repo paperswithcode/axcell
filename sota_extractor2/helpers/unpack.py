@@ -27,5 +27,7 @@ class Unpack:
             dest.mkdir(parents=True, exist_ok=True)
             with gzip.open(source, "rb") as src, open(dest / "main.tex", "wb") as dst:
                 copyfileobj(src, dst)
+        elif mime == 'application/pdf':
+            raise UnpackError(f"No LaTeX source code available for this paper, PDF only")
         else:
             raise UnpackError(f"Cannot unpack file of type {mime}")
