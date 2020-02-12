@@ -191,7 +191,7 @@ def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonom
             if type in structure[nr, c]:
                 yield Value(structure[nr, c], matrix[nr, c])
 
-    number_re = re.compile(r'(^[± Ee/()^0-9.%,_+-]{2,}$)|(^[0-9]$)')
+    number_re = re.compile(r'(^[± Ee/()^0-9.%,_+-]{2,}$)|(^\s*[0-9]\s*$)')
 
     proposals = [Proposal(
         cell=Cell(cell_ext_id=f"{table_ext_id}/{r}.{c}",
@@ -222,7 +222,7 @@ def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonom
             # if first_num > 1:
             #     first_num /= 100
             #     format = "{x/100}"
-            if first_num < 1 and '%' not in prop.raw_value:
+            if 0 < first_num < 1 and '%' not in prop.raw_value:
                 first_num *= 100
                 format = "{100*x}"
             if '%' in prop.raw_value:
@@ -235,7 +235,7 @@ def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonom
                 metric = row['metric']
                 if metric != row['true_metric']:
                     metric = row['true_metric']
-                    parsed = 1 - parsed if parsed < 1 else 100 - parsed
+                    parsed = 1 - parsed if 0 < parsed < 1 else 100 - parsed
                 parsed = float(parsed)
 
                 linked = {
