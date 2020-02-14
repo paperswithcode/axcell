@@ -1,8 +1,8 @@
 import re
 from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP, InvalidOperation
 
-float_value_re = re.compile(r"([+-]?(?:(?:\d{1,2}(?:,\d{3})+|\d+)(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)")
-float_value_nc = re.compile(r"(?:[+-]?(?:(?:\d{1,2}(?:,\d{3})+|\d+)(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)")
+float_value_re = re.compile(r"([+-]?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)")
+float_value_nc = re.compile(r"(?:[+-]?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)")
 par_re = re.compile(r"\{([^\}]*)\}")
 escaped_whitespace_re = re.compile(r"(\\\s)+")
 

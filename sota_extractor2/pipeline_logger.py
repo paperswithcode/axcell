@@ -5,6 +5,9 @@ class PipelineLogger:
     def __init__(self):
         self.observers = []
 
+    def reset(self):
+        self.observers = []
+
     def register(self, pattern, observer):
         if isinstance(pattern, str):
             pattern = re.compile(pattern)

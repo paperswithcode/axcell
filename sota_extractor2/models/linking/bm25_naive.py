@@ -1,5 +1,5 @@
 import re
-from decimal import Decimal
+from decimal import Decimal, localcontext, InvalidOperation
 from dataclasses import dataclass
 import numpy as np
 import pandas as pd
@@ -9,6 +9,7 @@ import logging
 import spacy
 from scispacy.abbreviation import AbbreviationDetector
 from sota_extractor2.models.linking.format import extract_value
+from functools import total_ordering
 
 
 @dataclass()
@@ -57,6 +58,44 @@ class Proposal:
 
     def __str__(self):
         return f"{self.model_name}: {self.raw_value} on {self.dataset}"
+
+
+@total_ordering
+class MetricValue(Decimal):
+    value: Decimal
+    unit: str = None
+
+    def __new__(cls, value, unit):
+        return super().__new__(cls, value / Decimal(100) if unit is '%' else value)
+
+    def __init__(self, value, unit):
+        self.value = value
+        self.unit = unit
+
+    def to_absolute(self):
+        return Decimal(self)
+
+    # unit = None means that no unit was specified, so we have to guess the unit.
+    # if there's a value "21" in a table's cell, then we guess if it's 21 or 0.21 (i.e., 21%)
+    # based on the target metric properties.
+    def to_percentage(self):
+        if self.unit is None and 0 < self.value < 1:
+            return self.value * 100
+        return self.value
+
+    def complement(self):
+        if self.unit is None and 1 < self.value < 100:
+            value = 100 - self.value
+        else:
+            value = 1 - self.value
+        return MetricValue(value, self.unit)
+
+    def __repr__(self):
+        return f"MetricValue({self.value}, {repr(self.unit)})"
+
+    def __str__(self):
+        return str(self.value)
+
 
 def mkquery_ngrams(query):
     return {
@@ -164,7 +203,9 @@ def handle_pm(value):
     for match in float_pm_re.findall(value):
         if not match[0]:
             try:
-                yield Decimal(whitespace_re.sub("", match[1])) / (100 if match[-1] else 1)
+                percent = bool(match[-1])
+                value = Decimal(whitespace_re.sub("", match[1])) / (100 if percent else 1)
+                yield MetricValue(value, "%" if percent else None)
             except:
                 pass
             # %%
@@ -217,26 +258,30 @@ def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonom
     def linked_proposals(proposals):
         for prop in proposals:
             # heuristyic to handle accuracy vs error
-            first_num = (list(handle_pm(prop.raw_value)) + [0])[0]
             format = "{x}"
-            # if first_num > 1:
-            #     first_num /= 100
-            #     format = "{x/100}"
-            if 0 < first_num < 1 and '%' not in prop.raw_value:
-                first_num *= 100
-                format = "{100*x}"
-            if '%' in prop.raw_value:
+
+            percentage = '%' in prop.raw_value
+            if percentage:
                 format += '%'
 
             df = taxonomy_linking(prop.dataset, datasets, desc, topk=topk, debug_info=prop)
             for _, row in df.iterrows():
                 raw_value = prop.raw_value
-                parsed = extract_value(raw_value, format)
                 metric = row['metric']
-                if metric != row['true_metric']:
-                    metric = row['true_metric']
-                    parsed = 1 - parsed if 0 < parsed < 1 else 100 - parsed
-                parsed = float(parsed)
+
+                with localcontext() as ctx:
+                    ctx.traps[InvalidOperation] = 0
+                    parsed = extract_value(raw_value, format)
+                    parsed = MetricValue(parsed, '%' if percentage else None)
+
+                    if metric != row['true_metric']:
+                        metric = row['true_metric']
+                        parsed = parsed.complement()
+
+                    if set(metric.lower().split()) & {"error", "accuracy", "bleu", "f1", "precision", "recall"}:
+                        parsed = float(parsed.to_percentage() / 100)
+                    else:
+                        parsed = float(parsed.to_absolute())
 
                 linked = {
                     'dataset': row['dataset'],

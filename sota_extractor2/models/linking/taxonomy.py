@@ -7,7 +7,7 @@ from sota_extractor2.models.linking.manual_dicts import complementary_metrics
 class Taxonomy:
     def __init__(self, taxonomy, metrics_info):
         self.taxonomy = self._get_taxonomy(taxonomy)
-        self.metrics_info = self._read_metrics_info(metrics_info)
+        self.metrics_info, self.metrics_range = self._read_metrics_info(metrics_info)
         self.tasks = self._get_axis('task')
         self.datasets = self._get_axis('dataset')
         self.metrics = self._get_axis('metric')
@@ -52,9 +52,19 @@ class Taxonomy:
     def _read_metrics_info(self, path):
         records = self._read_json(path)
         metrics_info = {}
+        metrics_range = {}
+        mr = {}
         for r in records:
             task, dataset, metric = r['task'], r['dataset'], r['metric']
+            key = (task, dataset, metric)
             d = 1 if r['higher_is_better'] else -1
-            metrics_info[(task, dataset, metric)] = d
+            rng = r['range']
+            metrics_info[key] = d
             metrics_info[metric] = metrics_info.get(metric, 0) + d
-        return metrics_info
+            metrics_range[key] = rng
+            s = mr.get(metric, {})
+            s[rng] = s.get(rng, 0) + 1
+            mr[metric] = s
+        for metric in mr:
+            metrics_range[metric] = sorted(mr[metric].items(), key=lambda x: x[1])[-1]
+        return metrics_info, metrics_range

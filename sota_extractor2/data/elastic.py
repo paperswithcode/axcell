@@ -352,3 +352,20 @@ def display_fragment(f, cell_type="", display=True):
     if display:
         display_html(html)
     return html
+
+
+def get_evidences_for_taxonomy(paper_id, task, dataset, metric, value):
+    evidence_query = Fragment.search().highlight(
+        'text', pre_tags="<b>", post_tags="</b>", fragment_size=50)
+
+    values = [task, dataset, metric, value]
+    query = {
+        "query": ' '.join(values)
+    }
+
+    fragments = list(evidence_query
+                     .filter('term', paper_id=paper_id)
+                     .query('match', text=query)[:5]
+                     )
+
+    return '\n'.join([' '.join(f.meta['highlight']['text']) for f in fragments])
