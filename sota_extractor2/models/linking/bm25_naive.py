@@ -9,7 +9,6 @@ import logging
 import spacy
 from scispacy.abbreviation import AbbreviationDetector
 from sota_extractor2.models.linking.format import extract_value
-from functools import total_ordering
 
 
 @dataclass()
@@ -60,20 +59,19 @@ class Proposal:
         return f"{self.model_name}: {self.raw_value} on {self.dataset}"
 
 
-@total_ordering
-class MetricValue(Decimal):
+class MetricValue:
     value: Decimal
     unit: str = None
-
-    def __new__(cls, value, unit):
-        return super().__new__(cls, value / Decimal(100) if unit is '%' else value)
 
     def __init__(self, value, unit):
         self.value = value
         self.unit = unit
 
+    def to_unitless(self):
+        return self.value
+
     def to_absolute(self):
-        return Decimal(self)
+        return self.value / Decimal(100) if self.unit is '%' else self.value
 
     # unit = None means that no unit was specified, so we have to guess the unit.
     # if there's a value "21" in a table's cell, then we guess if it's 21 or 0.21 (i.e., 21%)
@@ -84,10 +82,13 @@ class MetricValue(Decimal):
         return self.value
 
     def complement(self):
-        if self.unit is None and 1 < self.value < 100:
-            value = 100 - self.value
+        if self.unit is None:
+            if 1 < self.value < 100:
+                value = 100 - self.value
+            else:
+                value = 1 - self.value
         else:
-            value = 1 - self.value
+            value = 100 - self.value
         return MetricValue(value, self.unit)
 
     def __repr__(self):
@@ -211,6 +212,30 @@ def handle_pm(value):
             # %%
 
 
+def convert_metric(raw_value, rng, complementary):
+    format = "{x}"
+
+    percentage = '%' in raw_value
+    if percentage:
+        format += '%'
+
+    with localcontext() as ctx:
+        ctx.traps[InvalidOperation] = 0
+        parsed = extract_value(raw_value, format)
+        parsed = MetricValue(parsed, '%' if percentage else None)
+
+        if complementary:
+            parsed = parsed.complement()
+        if rng == '0-1':
+            parsed = parsed.to_percentage() / 100
+        elif rng == '1-100':
+            parsed = parsed.to_percentage()
+        elif rng == 'abs':
+            parsed = parsed.to_absolute()
+        else:
+            parsed = parsed.to_unitless()
+    return parsed
+
 proposal_columns = ['dataset', 'metric', 'task', 'format', 'raw_value', 'model', 'model_type', 'cell_ext_id',
                     'confidence', 'parsed', 'struct_model_type', 'struct_dataset']
 
@@ -267,26 +292,27 @@ def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonom
             df = taxonomy_linking(prop.dataset, datasets, desc, topk=topk, debug_info=prop)
             for _, row in df.iterrows():
                 raw_value = prop.raw_value
+                task = row['task']
+                dataset = row['dataset']
                 metric = row['metric']
 
-                with localcontext() as ctx:
-                    ctx.traps[InvalidOperation] = 0
-                    parsed = extract_value(raw_value, format)
-                    parsed = MetricValue(parsed, '%' if percentage else None)
+                complementary = False
+                if metric != row['true_metric']:
+                    metric = row['true_metric']
+                    complementary = True
 
-                    if metric != row['true_metric']:
-                        metric = row['true_metric']
-                        parsed = parsed.complement()
+                # todo: pass taxonomy directly to proposals generation
+                ranges = taxonomy_linking.taxonomy.metrics_range
+                key = (task, dataset, metric)
+                rng = ranges.get(key, '')
+                if not rng: rng = ranges.get(metric, '')
 
-                    if set(metric.lower().split()) & {"error", "accuracy", "bleu", "f1", "precision", "recall"}:
-                        parsed = float(parsed.to_percentage() / 100)
-                    else:
-                        parsed = float(parsed.to_absolute())
+                parsed = float(convert_metric(raw_value, rng, complementary))
 
                 linked = {
-                    'dataset': row['dataset'],
+                    'dataset': dataset,
                     'metric': metric,
-                    'task': row['task'],
+                    'task': task,
                     'format': format,
                     'raw_value': raw_value,
                     'model': prop.model_name,
@@ -305,7 +331,7 @@ def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonom
     return proposals
 
 
-def linked_proposals(paper_ext_id, paper, annotated_tables, taxonomy_linking=MatchSearch(),
+def linked_proposals(paper_ext_id, paper, annotated_tables, taxonomy_linking=None,
                      dataset_extractor=None, topk=1):
     #                     dataset_extractor=DatasetExtractor()):
     proposals = []

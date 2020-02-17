@@ -66,5 +66,5 @@ class Taxonomy:
             s[rng] = s.get(rng, 0) + 1
             mr[metric] = s
         for metric in mr:
-            metrics_range[metric] = sorted(mr[metric].items(), key=lambda x: x[1])[-1]
+            metrics_range[metric] = sorted(mr[metric].items(), key=lambda x: x[1])[-1][0]
         return metrics_info, metrics_range

@@ -34,3 +34,9 @@ To test the whole extraction on a single file run
 ```
 make test
 ```
+
+### Unit Tests
+
+```
+PYTHONPATH=. py.test
+```

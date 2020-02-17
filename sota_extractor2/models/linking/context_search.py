@@ -116,8 +116,9 @@ def axis_logprobs(evidences_for, reverse_probs, found_evidences, noise, pb):
 
 # compute log-probabilities in a given context and add them to logprobs
 @njit
-def compute_logprobs(taxonomy, reverse_merged_p, reverse_metrics_p, reverse_task_p,
-                     dss, mss, tss, noise, ms_noise, ts_noise, ds_pb, ms_pb, ts_pb, logprobs):
+def compute_logprobs(taxonomy, tasks, datasets, metrics,
+                     reverse_merged_p, reverse_metrics_p, reverse_task_p,
+                     dss, mss, tss, noise, ms_noise, ts_noise, ds_pb, ms_pb, ts_pb, logprobs, axes_logprobs):
     task_cache = typed.Dict.empty(types.unicode_type, types.float64)
     dataset_cache = typed.Dict.empty(types.unicode_type, types.float64)
     metric_cache = typed.Dict.empty(types.unicode_type, types.float64)
@@ -130,6 +131,21 @@ def compute_logprobs(taxonomy, reverse_merged_p, reverse_metrics_p, reverse_task
             task_cache[task] = axis_logprobs(task, reverse_task_p, tss, ts_noise, ts_pb)
 
         logprobs[i] += dataset_cache[dataset] + metric_cache[metric] + task_cache[task]
+    for i, task in enumerate(tasks):
+        axes_logprobs[0][i] += task_cache[task]
+
+    for i, dataset in enumerate(datasets):
+        axes_logprobs[1][i] += dataset_cache[dataset]
+
+    for i, metric in enumerate(metrics):
+        axes_logprobs[2][i] += metric_cache[metric]
+
+
+def _to_typed_list(iterable):
+    l = typed.List()
+    for i in iterable:
+        l.append(i)
+    return l
 
 
 class ContextSearch:
@@ -145,9 +161,12 @@ class ContextSearch:
         self.queries = {}
         self.taxonomy = taxonomy
         self.evidence_finder = evidence_finder
-        self._taxonomy = typed.List()
-        for t in self.taxonomy.taxonomy:
-            self._taxonomy.append(t)
+
+        self._taxonomy = _to_typed_list(self.taxonomy.taxonomy)
+        self._taxonomy_tasks = _to_typed_list(self.taxonomy.tasks)
+        self._taxonomy_datasets = _to_typed_list(self.taxonomy.datasets)
+        self._taxonomy_metrics = _to_typed_list(self.taxonomy.metrics)
+
         self.extract_acronyms = AcronymExtractor()
         self.context_noise = context_noise
         self.metrics_noise = metrics_noise if metrics_noise else context_noise
@@ -174,10 +193,10 @@ class ContextSearch:
             l.append(x)
         return l
 
-    def compute_context_logprobs(self, context, noise, ms_noise, ts_noise, logprobs):
+    def compute_context_logprobs(self, context, noise, ms_noise, ts_noise, logprobs, axes_logprobs):
         context = context or ""
         abbrvs = self.extract_acronyms(context)
-        context = normalize_cell_ws(normalize_dataset(context))
+        context = normalize_cell_ws(normalize_dataset_ws(context))
         dss = set(self.evidence_finder.find_datasets(context)) | set(abbrvs.keys())
         mss = set(self.evidence_finder.find_metrics(context))
         tss = set(self.evidence_finder.find_tasks(context))
@@ -191,21 +210,34 @@ class ContextSearch:
         dss = self._numba_extend_list(dss)
         mss = self._numba_extend_list(mss)
         tss = self._numba_extend_list(tss)
-        compute_logprobs(self._taxonomy, self.reverse_merged_p, self.reverse_metrics_p, self.reverse_tasks_p,
-                         dss, mss, tss, noise, ms_noise, ts_noise, self.ds_pb, self.ms_pb, self.ts_pb, logprobs)
+        compute_logprobs(self._taxonomy, self._taxonomy_tasks, self._taxonomy_datasets, self._taxonomy_metrics,
+                         self.reverse_merged_p, self.reverse_metrics_p, self.reverse_tasks_p,
+                         dss, mss, tss, noise, ms_noise, ts_noise, self.ds_pb, self.ms_pb, self.ts_pb, logprobs,
+                         axes_logprobs)
 
     def match(self, contexts):
         assert len(contexts) == len(self.context_noise)
         n = len(self._taxonomy)
         context_logprobs = np.zeros(n)
+        axes_context_logprobs = _to_typed_list([
+            np.zeros(len(self._taxonomy_tasks)),
+            np.zeros(len(self._taxonomy_datasets)),
+            np.zeros(len(self._taxonomy_metrics)),
+        ])
 
         for context, noise, ms_noise, ts_noise in zip(contexts, self.context_noise, self.metrics_noise, self.task_noise):
-            self.compute_context_logprobs(context, noise, ms_noise, ts_noise, context_logprobs)
+            self.compute_context_logprobs(context, noise, ms_noise, ts_noise, context_logprobs, axes_context_logprobs)
         keys = self.taxonomy.taxonomy
         logprobs = context_logprobs
         #keys, logprobs = zip(*context_logprobs.items())
         probs = softmax(np.array(logprobs))
-        return zip(keys, probs)
+        axes_probs = [softmax(np.array(a)) for a in axes_context_logprobs]
+        return (
+            zip(keys, probs),
+            zip(self.taxonomy.tasks, axes_probs[0]),
+            zip(self.taxonomy.datasets, axes_probs[1]),
+            zip(self.taxonomy.metrics, axes_probs[2])
+        )
 
     def __call__(self, query, datasets, caption, topk=1, debug_info=None):
         cellstr = debug_info.cell.cell_ext_id
@@ -229,8 +261,10 @@ class ContextSearch:
             ###print("Taking result from cache")
             p = self.queries[key]
         else:
-            dist = self.match((datasets, caption, query))
-            top_results = sorted(dist, key=lambda x: x[1], reverse=True)[:max(topk, 5)]
+            dists = self.match((datasets, caption, query))
+
+            all_top_results = [sorted(dist, key=lambda x: x[1], reverse=True)[:max(topk, 5)] for dist in dists]
+            top_results, top_results_t, top_results_d, top_results_m = all_top_results
 
             entries = []
             for it, prob in top_results:
@@ -238,6 +272,16 @@ class ContextSearch:
                 entry = dict(task=task, dataset=dataset, metric=metric)
                 entry.update({"evidence": "", "confidence": prob})
                 entries.append(entry)
+
+            # entries = []
+            # for i in range(5):
+            #     best_independent = dict(
+            #         task=top_results_t[i][0],
+            #         dataset=top_results_d[i][0],
+            #         metric=top_results_m[i][0])
+            #     best_independent.update({"evidence": "", "confidence": top_results_t[i][1]})
+            #     entries.append(best_independent)
+                #entries = [best_independent] + entries
 
             # best, best_p = sorted(dist, key=lambda x: x[1], reverse=True)[0]
             # entry = et[best]
@@ -283,5 +327,5 @@ class DatasetExtractor:
         return self(text)
 
     def __call__(self, text):
-        text = normalize_cell_ws(normalize_dataset(text))
+        text = normalize_cell_ws(normalize_dataset_ws(text))
         return self.evidence_finder.find_datasets(text) | self.evidence_finder.find_tasks(text)
