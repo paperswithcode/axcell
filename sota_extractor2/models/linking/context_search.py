@@ -14,6 +14,7 @@ from numba import njit, typed, types
 from sota_extractor2.pipeline_logger import pipeline_logger
 
 from sota_extractor2.models.linking import manual_dicts
+from collections import Counter
 
 def dummy_item(reason):
     return pd.DataFrame(dict(dataset=[reason], task=[reason], metric=[reason], evidence=[""], confidence=[0.0]))
@@ -64,10 +65,10 @@ class EvidenceFinder:
         profile = EvidenceFinder.single_letter_re.sub("x", profile)
         text = text.replace(" ", "")
         profile = profile.replace(" ", "")
-        s = set()
+        s = Counter()
         for (end, (l, word)) in names_trie.iter(text):
             if profile[end] in ['e', 'x'] and profile[end - l + 1] in ['b', 'x']:
-                s.add(word)
+                s[word] += 1
         return s
 
     def find_datasets(self, text):
@@ -105,12 +106,12 @@ class EvidenceFinder:
 
 
 @njit
-def axis_logprobs(evidences_for, reverse_probs, found_evidences, noise, pb):
+def axis_logprobs(evidences_for, reverse_probs, found_evidences, noise, pb, max_repetitions):
     logprob = 0.0
     empty = typed.Dict.empty(types.unicode_type, types.float64)
     short_probs = reverse_probs.get(evidences_for, empty)
-    for evidence in found_evidences:
-        logprob += np.log(noise * pb + (1 - noise) * short_probs.get(evidence, 0.0))
+    for evidence, count in found_evidences.items():
+        logprob += min(count, max_repetitions) * np.log(noise * pb + (1 - noise) * short_probs.get(evidence, 0.0))
     return logprob
 
 
@@ -118,17 +119,18 @@ def axis_logprobs(evidences_for, reverse_probs, found_evidences, noise, pb):
 @njit
 def compute_logprobs(taxonomy, tasks, datasets, metrics,
                      reverse_merged_p, reverse_metrics_p, reverse_task_p,
-                     dss, mss, tss, noise, ms_noise, ts_noise, ds_pb, ms_pb, ts_pb, logprobs, axes_logprobs):
+                     dss, mss, tss, noise, ms_noise, ts_noise, ds_pb, ms_pb, ts_pb, logprobs, axes_logprobs,
+                     max_repetitions):
     task_cache = typed.Dict.empty(types.unicode_type, types.float64)
     dataset_cache = typed.Dict.empty(types.unicode_type, types.float64)
     metric_cache = typed.Dict.empty(types.unicode_type, types.float64)
     for i, (task, dataset, metric) in enumerate(taxonomy):
         if dataset not in dataset_cache:
-            dataset_cache[dataset] = axis_logprobs(dataset, reverse_merged_p, dss, noise, ds_pb)
+            dataset_cache[dataset] = axis_logprobs(dataset, reverse_merged_p, dss, noise, ds_pb, 1)
         if metric not in metric_cache:
-            metric_cache[metric] = axis_logprobs(metric, reverse_metrics_p, mss, ms_noise, ms_pb)
+            metric_cache[metric] = axis_logprobs(metric, reverse_metrics_p, mss, ms_noise, ms_pb, 1)
         if task not in task_cache:
-            task_cache[task] = axis_logprobs(task, reverse_task_p, tss, ts_noise, ts_pb)
+            task_cache[task] = axis_logprobs(task, reverse_task_p, tss, ts_noise, ts_pb, max_repetitions)
 
         logprobs[i] += dataset_cache[dataset] + metric_cache[metric] + task_cache[task]
     for i, task in enumerate(tasks):
@@ -149,7 +151,7 @@ def _to_typed_list(iterable):
 
 
 class ContextSearch:
-    def __init__(self, taxonomy, evidence_finder, context_noise=(0.5, 0.2, 0.1), metrics_noise=None, task_noise=None,
+    def __init__(self, taxonomy, evidence_finder, context_noise=(0.5, 0.1, 0.2, 0.2, 0.1), metric_noise=None, task_noise=None,
                  ds_pb=0.001, ms_pb=0.01, ts_pb=0.01, debug_gold_df=None):
         merged_p = \
         get_probs({k: Counter([normalize_cell(normalize_dataset(x)) for x in v]) for k, v in evidence_finder.datasets.items()})[1]
@@ -169,7 +171,7 @@ class ContextSearch:
 
         self.extract_acronyms = AcronymExtractor()
         self.context_noise = context_noise
-        self.metrics_noise = metrics_noise if metrics_noise else context_noise
+        self.metrics_noise = metric_noise if metric_noise else context_noise
         self.task_noise = task_noise if task_noise else context_noise
         self.ds_pb = ds_pb
         self.ms_pb = ms_pb
@@ -178,6 +180,7 @@ class ContextSearch:
         self.reverse_metrics_p = self._numba_update_nested_dict(reverse_probs(metrics_p))
         self.reverse_tasks_p = self._numba_update_nested_dict(reverse_probs(tasks_p))
         self.debug_gold_df = debug_gold_df
+        self.max_repetitions = 1
 
     def _numba_update_nested_dict(self, nested):
         d = typed.Dict()
@@ -188,32 +191,43 @@ class ContextSearch:
         return d
 
     def _numba_extend_list(self, lst):
-        l = typed.List.empty_list(types.unicode_type)
+        l = typed.List.empty_list((types.unicode_type, types.int32))
         for x in lst:
             l.append(x)
         return l
 
+    def _numba_extend_dict(self, dct):
+        d = typed.Dict.empty(types.unicode_type, types.int64)
+        d.update(dct)
+        return d
+
     def compute_context_logprobs(self, context, noise, ms_noise, ts_noise, logprobs, axes_logprobs):
-        context = context or ""
-        abbrvs = self.extract_acronyms(context)
-        context = normalize_cell_ws(normalize_dataset_ws(context))
-        dss = set(self.evidence_finder.find_datasets(context)) | set(abbrvs.keys())
-        mss = set(self.evidence_finder.find_metrics(context))
-        tss = set(self.evidence_finder.find_tasks(context))
-        dss -= mss
-        dss -= tss
-        dss = [normalize_cell(ds) for ds in dss]
-        mss = [normalize_cell(ms) for ms in mss]
-        tss = [normalize_cell(ts) for ts in tss]
+        if isinstance(context, str) or context is None:
+            context = context or ""
+            #abbrvs = self.extract_acronyms(context)
+            context = normalize_cell_ws(normalize_dataset_ws(context))
+            #dss = set(self.evidence_finder.find_datasets(context)) | set(abbrvs.keys())
+            dss = self.evidence_finder.find_datasets(context)
+            mss = self.evidence_finder.find_metrics(context)
+            tss = self.evidence_finder.find_tasks(context)
+
+            dss -= mss
+            dss -= tss
+        else:
+            tss, dss, mss = context
+
+        dss = {normalize_cell(ds): count for ds, count in dss.items()}
+        mss = {normalize_cell(ms): count for ms, count in mss.items()}
+        tss = {normalize_cell(ts): count for ts, count in tss.items()}
         ###print("dss", dss)
         ###print("mss", mss)
-        dss = self._numba_extend_list(dss)
-        mss = self._numba_extend_list(mss)
-        tss = self._numba_extend_list(tss)
+        dss = self._numba_extend_dict(dss)
+        mss = self._numba_extend_dict(mss)
+        tss = self._numba_extend_dict(tss)
         compute_logprobs(self._taxonomy, self._taxonomy_tasks, self._taxonomy_datasets, self._taxonomy_metrics,
                          self.reverse_merged_p, self.reverse_metrics_p, self.reverse_tasks_p,
                          dss, mss, tss, noise, ms_noise, ts_noise, self.ds_pb, self.ms_pb, self.ts_pb, logprobs,
-                         axes_logprobs)
+                         axes_logprobs, self.max_repetitions)
 
     def match(self, contexts):
         assert len(contexts) == len(self.context_noise)
@@ -239,11 +253,16 @@ class ContextSearch:
             zip(self.taxonomy.metrics, axes_probs[2])
         )
 
-    def __call__(self, query, datasets, caption, topk=1, debug_info=None):
+    def __call__(self, query, paper_context, abstract_context, table_context, caption, topk=1, debug_info=None):
         cellstr = debug_info.cell.cell_ext_id
-        pipeline_logger("linking::taxonomy_linking::call", ext_id=cellstr, query=query, datasets=datasets, caption=caption)
-        datasets = " ".join(datasets)
-        key = (datasets, caption, query, topk)
+        pipeline_logger("linking::taxonomy_linking::call", ext_id=cellstr, query=query,
+                        paper_context=paper_context, abstract_context=abstract_context, table_context=table_context,
+                        caption=caption)
+
+        paper_hash = ";".join(",".join(s.elements()) for s in paper_context)
+        abstract_hash = ";".join(",".join(s.elements()) for s in abstract_context)
+        mentions_hash = ";".join(",".join(s.elements()) for s in table_context)
+        key = (paper_hash, abstract_hash, mentions_hash, caption, query, topk)
         ###print(f"[DEBUG] {cellstr}")
         ###print("[DEBUG]", debug_info)
         ###print("query:", query, caption)
@@ -261,7 +280,7 @@ class ContextSearch:
             ###print("Taking result from cache")
             p = self.queries[key]
         else:
-            dists = self.match((datasets, caption, query))
+            dists = self.match((paper_context, abstract_context, table_context, caption, query))
 
             all_top_results = [sorted(dist, key=lambda x: x[1], reverse=True)[:max(topk, 5)] for dist in dists]
             top_results, top_results_t, top_results_d, top_results_m = all_top_results
@@ -279,7 +298,10 @@ class ContextSearch:
             #         task=top_results_t[i][0],
             #         dataset=top_results_d[i][0],
             #         metric=top_results_m[i][0])
-            #     best_independent.update({"evidence": "", "confidence": top_results_t[i][1]})
+            #     best_independent.update({
+            #         "evidence": "",
+            #         "confidence": np.power(top_results_t[i][1] * top_results_d[i][1] * top_results_m[i][1], 1.0/3.0)
+            #     })
             #     entries.append(best_independent)
                 #entries = [best_independent] + entries
 
@@ -314,18 +336,51 @@ class ContextSearch:
 
 
 # todo: compare regex approach (old) with find_datasets(.) (current)
+# todo: rename it
 class DatasetExtractor:
     def __init__(self, evidence_finder):
         self.evidence_finder = evidence_finder
         self.dataset_prefix_re = re.compile(r"[A-Z]|[a-z]+[A-Z]+|[0-9]")
         self.dataset_name_re = re.compile(r"\b(the)\b\s*(?P<name>((?!(the)\b)\w+\W+){1,10}?)(test|val(\.|idation)?|dev(\.|elopment)?|train(\.|ing)?\s+)?\bdata\s*set\b", re.IGNORECASE)
 
+    def find_references(self, text, references):
+        refs = r"\bxxref-(" + "|".join([re.escape(ref) for ref in references]) + r")\b"
+        return set(re.findall(refs, text))
+
+    def get_table_contexts(self, paper, tables):
+        ref_tables = [table for table in tables if table.figure_id]
+        refs = [table.figure_id.replace(".", "") for table in ref_tables]
+        ref_contexts = {ref: [Counter(), Counter(), Counter()] for ref in refs}
+        if hasattr(paper.text, "fragments"):
+            for fragment in paper.text.fragments:
+                found_refs = self.find_references(fragment.text, refs)
+                if found_refs:
+                    ts, ds, ms = self(fragment.header + "\n" + fragment.text)
+                    for ref in found_refs:
+                        ref_contexts[ref][0] += ts
+                        ref_contexts[ref][1] += ds
+                        ref_contexts[ref][2] += ms
+        table_contexts = [
+            ref_contexts.get(
+                table.figure_id.replace(".", ""),
+                [Counter(), Counter(), Counter()]
+            ) if table.figure_id else [Counter(), Counter(), Counter()]
+            for table in tables
+        ]
+        return table_contexts
+
     def from_paper(self, paper):
-        text = paper.text.abstract
+        abstract = paper.text.abstract
+        text = ""
         if hasattr(paper.text, "fragments"):
             text += " ".join(f.text for f in paper.text.fragments)
-        return self(text)
+        return self(text), self(abstract)
 
     def __call__(self, text):
         text = normalize_cell_ws(normalize_dataset_ws(text))
-        return self.evidence_finder.find_datasets(text) | self.evidence_finder.find_tasks(text)
+        ds = self.evidence_finder.find_datasets(text)
+        ts = self.evidence_finder.find_tasks(text)
+        ms = self.evidence_finder.find_metrics(text)
+        ds -= ts
+        ds -= ms
+        return ts, ds, ms

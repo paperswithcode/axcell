@@ -159,8 +159,8 @@ class LinkerEvaluator:
     def on_after_linking(self, step, paper, tables, proposals):
         self.proposals[paper.paper_id] = proposals.copy(deep=True)
 
-    def on_before_taxonomy(self, step, ext_id, query, datasets, caption):
-        self.queries[ext_id] = (query, datasets, caption)
+    def on_before_taxonomy(self, step, ext_id, query, paper_context, abstract_context, table_context, caption):
+        self.queries[ext_id] = (query, paper_context, abstract_context, table_context, caption)
 
     def on_taxonomy_topk(self, step, ext_id, topk):
         paper_id, table_name, rc = ext_id.split('/')

@@ -240,7 +240,8 @@ proposal_columns = ['dataset', 'metric', 'task', 'format', 'raw_value', 'model',
                     'confidence', 'parsed', 'struct_model_type', 'struct_dataset']
 
 
-def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonomy_linking, datasets, topk=1):
+def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonomy_linking,
+                                 paper_context, abstract_context, table_context, topk=1):
     # %%
     # Proposal generation
     def consume_cells(matrix):
@@ -289,7 +290,8 @@ def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonom
             if percentage:
                 format += '%'
 
-            df = taxonomy_linking(prop.dataset, datasets, desc, topk=topk, debug_info=prop)
+            df = taxonomy_linking(prop.dataset, paper_context, abstract_context, table_context,
+                                  desc, topk=topk, debug_info=prop)
             for _, row in df.iterrows():
                 raw_value = prop.raw_value
                 task = row['task']
@@ -335,9 +337,10 @@ def linked_proposals(paper_ext_id, paper, annotated_tables, taxonomy_linking=Non
                      dataset_extractor=None, topk=1):
     #                     dataset_extractor=DatasetExtractor()):
     proposals = []
-    datasets = dataset_extractor.from_paper(paper)
+    paper_context, abstract_context = dataset_extractor.from_paper(paper)
+    table_contexts = dataset_extractor.get_table_contexts(paper, annotated_tables)
     #print(f"Extracted datasets: {datasets}")
-    for idx, table in enumerate(annotated_tables):
+    for idx, (table, table_context) in enumerate(zip(annotated_tables, table_contexts)):
         matrix = np.array(table.matrix)
         structure = np.array(table.matrix_tags)
         tags = 'sota'
@@ -347,7 +350,9 @@ def linked_proposals(paper_ext_id, paper, annotated_tables, taxonomy_linking=Non
         if 'sota' in tags and 'no_sota_records' not in tags: # only parse tables that are marked as sota
             proposals.append(
                 generate_proposals_for_table(
-                    table_ext_id, matrix, structure, desc, taxonomy_linking, datasets, topk=topk
+                    table_ext_id, matrix, structure, desc, taxonomy_linking,
+                    paper_context, abstract_context, table_context,
+                    topk=topk
                 )
             )
     if len(proposals):
