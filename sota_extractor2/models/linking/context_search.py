@@ -180,7 +180,7 @@ class ContextSearch:
         self.reverse_metrics_p = self._numba_update_nested_dict(reverse_probs(metrics_p))
         self.reverse_tasks_p = self._numba_update_nested_dict(reverse_probs(tasks_p))
         self.debug_gold_df = debug_gold_df
-        self.max_repetitions = 1
+        self.max_repetitions = 3
 
     def _numba_update_nested_dict(self, nested):
         d = typed.Dict()
@@ -292,6 +292,16 @@ class ContextSearch:
                 entry.update({"evidence": "", "confidence": prob})
                 entries.append(entry)
 
+            best_independent = dict(
+                task=top_results_t[0][0],
+                dataset=top_results_d[0][0],
+                metric=top_results_m[0][0])
+            best_independent.update({
+                "evidence": "",
+                "confidence": 0.79
+            })
+            entries.append(best_independent)
+
             # entries = []
             # for i in range(5):
             #     best_independent = dict(
@@ -310,7 +320,7 @@ class ContextSearch:
             # p = pd.DataFrame({k:[v] for k, v in entry.items()})
             # p["evidence"] = ""
             # p["confidence"] = best_p
-            p = pd.DataFrame(entries)
+            p = pd.DataFrame(entries).sort_values("confidence", ascending=False)
 
             self.queries[key] = p
 

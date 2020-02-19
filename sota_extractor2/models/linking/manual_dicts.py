@@ -15,7 +15,7 @@ metrics = {
     'Word Accuracy': ['accuracy', 'word accuracy', 'acc', 'word acc'],
     'ROUGE-1': ['r1'],
     'ROUGE-2': ['r2'],
-    'ROUGE-F': ['rf'],
+    'ROUGE-L': ['rl'],
     'Precision': ['precision'],
     'Recall': ['recall'],
     # RAIN REMOVAL
