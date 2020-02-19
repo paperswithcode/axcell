@@ -354,9 +354,9 @@ def display_fragment(f, cell_type="", display=True):
     return html
 
 
-def query_for_evidences(paper_id, values, topk=5):
+def query_for_evidences(paper_id, values, topk=5, fragment_size=50):
     evidence_query = Fragment.search().highlight(
-        'text', pre_tags="<b>", post_tags="</b>", fragment_size=50)
+        'text', pre_tags="<b>", post_tags="</b>", fragment_size=fragment_size)
 
     query = {
         "query": ' '.join(values)
