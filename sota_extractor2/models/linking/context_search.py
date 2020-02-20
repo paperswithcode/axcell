@@ -248,9 +248,9 @@ class ContextSearch:
         axes_probs = [softmax(np.array(a)) for a in axes_context_logprobs]
         return (
             zip(keys, probs),
-            zip(self.taxonomy.tasks, axes_probs[0]),
-            zip(self.taxonomy.datasets, axes_probs[1]),
-            zip(self.taxonomy.metrics, axes_probs[2])
+            zip(self._taxonomy_tasks, axes_probs[0]),
+            zip(self._taxonomy_datasets, axes_probs[1]),
+            zip(self._taxonomy_metrics, axes_probs[2])
         )
 
     def __call__(self, query, paper_context, abstract_context, table_context, caption, topk=1, debug_info=None):
@@ -259,9 +259,9 @@ class ContextSearch:
                         paper_context=paper_context, abstract_context=abstract_context, table_context=table_context,
                         caption=caption)
 
-        paper_hash = ";".join(",".join(s.elements()) for s in paper_context)
-        abstract_hash = ";".join(",".join(s.elements()) for s in abstract_context)
-        mentions_hash = ";".join(",".join(s.elements()) for s in table_context)
+        paper_hash = ";".join(",".join(sorted(s.elements())) for s in paper_context)
+        abstract_hash = ";".join(",".join(sorted(s.elements())) for s in abstract_context)
+        mentions_hash = ";".join(",".join(sorted(s.elements())) for s in table_context)
         key = (paper_hash, abstract_hash, mentions_hash, caption, query, topk)
         ###print(f"[DEBUG] {cellstr}")
         ###print("[DEBUG]", debug_info)
@@ -282,7 +282,7 @@ class ContextSearch:
         else:
             dists = self.match((paper_context, abstract_context, table_context, caption, query))
 
-            all_top_results = [sorted(dist, key=lambda x: x[1], reverse=True)[:max(topk, 5)] for dist in dists]
+            all_top_results = [sorted(list(dist), key=lambda x: x[1], reverse=True)[:max(topk, 5)] for dist in dists]
             top_results, top_results_t, top_results_d, top_results_m = all_top_results
 
             entries = []
@@ -358,8 +358,10 @@ class DatasetExtractor:
         return set(re.findall(refs, text))
 
     def get_table_contexts(self, paper, tables):
-        ref_tables = [table for table in tables if table.figure_id]
+        ref_tables = [table for table in tables if table.figure_id and table.figure_id.replace(".", "")]
         refs = [table.figure_id.replace(".", "") for table in ref_tables]
+        if not refs:
+            return [[Counter(), Counter(), Counter()] for table in tables]
         ref_contexts = {ref: [Counter(), Counter(), Counter()] for ref in refs}
         if hasattr(paper.text, "fragments"):
             for fragment in paper.text.fragments:
