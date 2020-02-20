@@ -119,11 +119,17 @@ def axis_logprobs(evidences_for, reverse_probs, found_evidences, noise, pb, max_
 @njit
 def compute_logprobs(taxonomy, tasks, datasets, metrics,
                      reverse_merged_p, reverse_metrics_p, reverse_task_p,
-                     dss, mss, tss, noise, ms_noise, ts_noise, ds_pb, ms_pb, ts_pb, logprobs, axes_logprobs,
+                     dss, mss, tss, noise, ms_noise, ts_noise, ds_pb, ms_pb, ts_pb,
                      max_repetitions):
     task_cache = typed.Dict.empty(types.unicode_type, types.float64)
     dataset_cache = typed.Dict.empty(types.unicode_type, types.float64)
     metric_cache = typed.Dict.empty(types.unicode_type, types.float64)
+    logprobs = np.zeros(len(taxonomy))
+    axes_logprobs = (
+        np.zeros(len(tasks)),
+        np.zeros(len(datasets)),
+        np.zeros(len(metrics))
+    )
     for i, (task, dataset, metric) in enumerate(taxonomy):
         if dataset not in dataset_cache:
             dataset_cache[dataset] = axis_logprobs(dataset, reverse_merged_p, dss, noise, ds_pb, 1)
@@ -141,6 +147,7 @@ def compute_logprobs(taxonomy, tasks, datasets, metrics,
 
     for i, metric in enumerate(metrics):
         axes_logprobs[2][i] += metric_cache[metric]
+    return logprobs, axes_logprobs
 
 
 def _to_typed_list(iterable):
@@ -160,7 +167,9 @@ class ContextSearch:
         tasks_p = \
         get_probs({k: Counter([normalize_cell(normalize_dataset(x)) for x in v]) for k, v in evidence_finder.tasks.items()})[1]
 
+        # todo: use LRU cache to avoid OOM
         self.queries = {}
+        self.logprobs_cache = {}
         self.taxonomy = taxonomy
         self.evidence_finder = evidence_finder
 
@@ -201,6 +210,11 @@ class ContextSearch:
         d.update(dct)
         return d
 
+    def _hash_counter(self, d):
+        items = list(d.items())
+        items = sorted(items)
+        return ";".join([x[0]+":"+str(x[1]) for x in items])
+
     def compute_context_logprobs(self, context, noise, ms_noise, ts_noise, logprobs, axes_logprobs):
         if isinstance(context, str) or context is None:
             context = context or ""
@@ -224,10 +238,20 @@ class ContextSearch:
         dss = self._numba_extend_dict(dss)
         mss = self._numba_extend_dict(mss)
         tss = self._numba_extend_dict(tss)
-        compute_logprobs(self._taxonomy, self._taxonomy_tasks, self._taxonomy_datasets, self._taxonomy_metrics,
-                         self.reverse_merged_p, self.reverse_metrics_p, self.reverse_tasks_p,
-                         dss, mss, tss, noise, ms_noise, ts_noise, self.ds_pb, self.ms_pb, self.ts_pb, logprobs,
-                         axes_logprobs, self.max_repetitions)
+
+        key = (self._hash_counter(tss), self._hash_counter(dss), self._hash_counter(mss), noise, ms_noise, ts_noise)
+        if key not in self.logprobs_cache:
+            lp, alp = compute_logprobs(self._taxonomy, self._taxonomy_tasks, self._taxonomy_datasets, self._taxonomy_metrics,
+                             self.reverse_merged_p, self.reverse_metrics_p, self.reverse_tasks_p,
+                             dss, mss, tss, noise, ms_noise, ts_noise, self.ds_pb, self.ms_pb, self.ts_pb,
+                             self.max_repetitions)
+            self.logprobs_cache[key] = (lp, alp)
+        else:
+            lp, alp = self.logprobs_cache[key]
+        logprobs += lp
+        axes_logprobs[0] += alp[0]
+        axes_logprobs[1] += alp[1]
+        axes_logprobs[2] += alp[2]
 
     def match(self, contexts):
         assert len(contexts) == len(self.context_noise)
