@@ -1,9 +1,10 @@
 from bs4 import BeautifulSoup
 import pandas as pd
 import re
+from dataclasses import asdict
 
 from elasticsearch_dsl import Document, Boolean, Object, \
-    analyzer, InnerDoc, Keyword, Text, Integer, tokenizer, token_filter
+    analyzer, InnerDoc, Keyword, Text, Integer, tokenizer, token_filter, Date
 from elasticsearch_dsl.serializer import serializer
 
 from IPython.display import display, Markdown
@@ -132,7 +133,7 @@ class Fragment(Document):
 
 class Paper(Document):
     title = Text()
-    authors = Keyword()
+    authors = Keyword() #TODO: change this to Text() otherwise we can't search using this field.
     abstract = Text(
         analyzer=html_strip
     )
@@ -294,6 +295,67 @@ class Reference(Document):
 
     def __repr__(self):
         return f"{self.title} / {self.authors}"
+
+ID_LIMIT=480
+
+class Reference2(Document):
+    title = Text()
+    authors = Text()
+
+    idno = Keyword()
+    date = Date()
+    ptr = Keyword()
+
+    arxiv_id = Keyword()
+    orig_refs = Text()
+
+    class Index:
+        name = 'references2'
+
+    def add_ref(self, ref):
+        # if not hasattr(self, 'refs'):
+        #     self.refs = []
+        # self.refs.append(asdict(ref))
+        if ref.arxiv_id:
+            self.arxiv_id = ref.arxiv_id
+        if ref.idno:
+            if hasattr(ref.idno, 'values'):
+                self.idno = ([None]+[v for v in ref.idno.values() if v.startswith("http")]).pop()
+            elif isinstance(ref.idno, str):
+                self.idno = ref.idno
+        # if ref.date:
+        #     self.date = ref.date
+        self.date = None
+        if ref.ptr:
+            self.ptr = ref.ptr
+        self.orig_refs = self.orig_refs if self.orig_refs else []
+        self.orig_refs.append(ref.orig_ref)
+        self.orig_refs = list(set(self.orig_refs))
+
+        # TODO Update authors
+        # titles = Counter([norm_title] + [normalize_title(ref.title) for ref in merged])
+        # norm_title = titles.most_common(1)[0][0]
+
+    @property
+    def stable_id(self):
+        return self.meta.id
+
+    def unique_id(self):
+        return self.meta.id
+
+    @classmethod
+    def from_ref(cls, ref):
+        #title = ref.title
+        #first_author = ref.authors[0].short() if len(ref.authors) > 0 else "unknown"
+        # Todo figure out what to do here so stable_id is recoverable, and it has no collisions
+        #  stable_id = first_author + "-" + normalize_title(until_first_nonalphanumeric(title))[:50]
+        stable_id = ref.unique_id()[:ID_LIMIT]
+
+        self = cls(meta={"id":stable_id},
+                   title=ref.title,
+                   authors=[asdict(a) for a in ref.authors if a is not None])
+
+        return self
 
 #
 # arxiv = Path('data/arxiv')

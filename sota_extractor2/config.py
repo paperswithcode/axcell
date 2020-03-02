@@ -14,7 +14,7 @@ goldtags_dump = data / "dumps" / "goldtags-2019.10.15_2227.json.gz"
 
 
 elastic = dict(hosts=['localhost'], timeout=20)
-
+grobid = dict(host='10.0.1.145')
 
 arxiv = data/'arxiv'
 htmls_raw = arxiv/'htmls'
