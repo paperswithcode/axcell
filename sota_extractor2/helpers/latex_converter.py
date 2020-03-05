@@ -2,6 +2,7 @@ import docker
 from docker.errors import ContainerError, ImageNotFound
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from bs4 import BeautifulSoup
 
 from sota_extractor2.errors import LatexConversionError
 
@@ -62,27 +63,11 @@ class LatexConverter:
             raise
 
     # todo: check for errors
-
-    def clean_html(self, path, use_named_volumes=False):
+    def clean_html(self, path):
         path = Path(path)
-
-        if use_named_volumes:
-            index_path = path
-            volumes = {
-                "pwc_htmls": ro_bind("/data/arxiv/htmls")
-            }
-        else:
-            index_path = "/files/index.html"
-            volumes = {
-                path.resolve(): ro_bind(index_path)
-            }
-
-        command = ["timeout", "-s", "KILL", "20", "chromium-browser", "--headless",
-                   "--disable-gpu", "--disable-software-rasterizer", "--no-sandbox",
-                   "--timeout=30000", "--dump-dom", str(index_path)]
-        data = self.client.containers.run("zenika/alpine-chrome:73", command, remove=True, entrypoint="",
-                                          volumes=volumes)
-        return data.decode('utf-8')
+        with path.open("rb") as file:
+            soup = BeautifulSoup(file, "html5lib")
+        return str(soup)
 
     def to_html(self, source_dir):
         with TemporaryDirectory() as output_dir:
