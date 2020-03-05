@@ -82,7 +82,6 @@ class GrobidClient:
         self.cache.close()
         self.cache = None
 
-grobidclient=GrobidClient(**config.grobid)
 
 def pop_first(dictionary, *path):
     if dictionary is None:
@@ -124,6 +123,14 @@ class PAuthor:
             warn(f"{err} - Unable to parse {d} as Author")
             print(d)
 
+    @classmethod
+    def from_fullname(cls, fullname):
+        names = fullname.split()
+        return cls(
+            forenames=tuple(names[:-1]),
+            surname=names[-1]
+        )
+
     def __repr__(self):
         fnames = ', '.join(self.forenames)
         return f'"{self.surname}; {fnames}"'
@@ -156,11 +163,6 @@ def extract_arxivid(ref_str):
             ref_str = ref_str[:b] + " " +ref_str[e:]
     return ref_str, arxiv_id
 
-with Path('/mnt/efs/pwc/data/ref-names.json').open() as f:
-    preloaded_surnames_db = json.load(f)
-
-def is_surname(word):
-    return word in preloaded_surnames_db
 
 def is_publication_venue(word):
     return word.lower() in conferences
@@ -203,7 +205,7 @@ def post_process_title(title, is_surname, is_publication_venue):
 
         title = max(scores)[1]
 
-    title = strip_conferences(title)
+    # title = strip_conferences(title)
     title = title.rstrip(' .')
     return title
 
@@ -221,6 +223,7 @@ class PReference:
     orig_ref: str = field(repr=False, default_factory=lambda:None)
 
     arxiv_id: str = None
+    pwc_slug: str = None
 
     def unique_id(self):
         if not self.title:
@@ -257,12 +260,12 @@ class PReference:
         )
 
     @classmethod
-    def parse_ref_str(cls, ref_str, orig_key=None, is_surname=is_surname, is_publication_venue=is_publication_venue):
+    def parse_ref_str(cls, ref_str, grobid_client, orig_key=None, is_surname=None, is_publication_venue=is_publication_venue):
         try:
             clean_ref_str = strip_latex_artefacts(ref_str)
             clean_ref_str = strip_anchor(clean_ref_str)
             clean_ref_str, arxiv_id = extract_arxivid(clean_ref_str)
-            d = grobidclient.parse_ref_str_to_tei_dict(clean_ref_str)
+            d = grobid_client.parse_ref_str_to_tei_dict(clean_ref_str)
             ref = cls.from_tei_dict(d, orig_ref=ref_str, arxiv_id=arxiv_id)
             ref.orig_key = orig_key
 
@@ -278,13 +281,19 @@ def until_first_nonalphanumeric(string):
     return nonalphanumeric_re.split(string)[0]
 
 class ReferenceStore:
-    def __init__(self):
+    def __init__(self, grobid_client, surnames_path='/mnt/efs/pwc/data/ref-names.json'):
+        self.grobid_client = grobid_client
         self.refdb = {}
         self.tosync = []
         self.surnames_db = defaultdict(lambda: 0)
+        self._load_surnames(surnames_path)
+
+    def _load_surnames(self, path):
+        with Path(path).open() as f:
+            self.preloaded_surnames_db = json.load(f)
 
     def is_surname(self, word):
-        return is_surname(word) or self.surnames_db[word] > 5
+        return word in self.preloaded_surnames_db  #or self.surnames_db[word] > 5
 
     def get_reference(self, key):
         if key not in self.refdb:
@@ -305,7 +314,7 @@ class ReferenceStore:
         return self.refdb[curr_uid].stable_id
 
     def add_reference_string(self, ref_str):
-        ref = PReference.parse_ref_str(ref_str, self.is_surname)
+        ref = PReference.parse_ref_str(ref_str, self.grobid_client, is_surname=self.is_surname)
         if ref is None or ref.unique_id() is None:
             for r in Reference2.search().query('match', orig_refs=ref_str)[:10]:
                 if r.stable_id in normalize_title(ref_str):

@@ -28,6 +28,8 @@ def get_refstrings(p):
             ref_sec_started = True
             yield f.text
         elif ref_sec_started:
+            # todo: check if a paper can have multiple bibliography sections
+            # (f.e., one in the main paper and one in the appendix)
             break  # the refsection is only at the end of paper
 
 
@@ -58,7 +60,7 @@ class PaperCollectionReferenceParser:
                     if new_id is not None:
                         new_id = "pwc-" + new_id
                     self.cache[key] = new_id
-                if self.cache[key] and len(self.cache[key]) > 500:  # fix to self.cache to make the id compatible with elastic
+                if self.cache[key] and len(self.cache[key]) > ID_LIMIT:  # fix to self.cache to make the id compatible with elastic
                     self.cache[key] = self.cache[key][:ID_LIMIT]
                 yield d["ref_id"], self.cache[key]
         self.refsdb.sync()

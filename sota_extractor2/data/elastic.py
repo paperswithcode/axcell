@@ -307,6 +307,7 @@ class Reference2(Document):
     ptr = Keyword()
 
     arxiv_id = Keyword()
+    pwc_slug = Keyword()
     orig_refs = Text()
 
     class Index:
@@ -318,6 +319,8 @@ class Reference2(Document):
         # self.refs.append(asdict(ref))
         if ref.arxiv_id:
             self.arxiv_id = ref.arxiv_id
+        if ref.pwc_slug:
+            self.pwc_slug = ref.pwc_slug
         if ref.idno:
             if hasattr(ref.idno, 'values'):
                 self.idno = ([None]+[v for v in ref.idno.values() if v.startswith("http")]).pop()
@@ -325,7 +328,6 @@ class Reference2(Document):
                 self.idno = ref.idno
         # if ref.date:
         #     self.date = ref.date
-        self.date = None
         if ref.ptr:
             self.ptr = ref.ptr
         self.orig_refs = self.orig_refs if self.orig_refs else []
