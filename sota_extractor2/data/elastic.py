@@ -296,11 +296,18 @@ class Reference(Document):
     def __repr__(self):
         return f"{self.title} / {self.authors}"
 
+
 ID_LIMIT=480
+
+
+class Author2(InnerDoc):
+    forenames = Text(fields={'keyword': Keyword()})
+    surname = Text(fields={'keyword': Keyword()})
+
 
 class Reference2(Document):
     title = Text()
-    authors = Text()
+    authors = Object(Author2)
 
     idno = Keyword()
     date = Date()

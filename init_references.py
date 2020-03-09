@@ -1,7 +1,8 @@
 import re
 import json
 from pathlib import Path
-from sota_extractor2.data.elastic import Reference2
+from collections import Counter
+from sota_extractor2.data.elastic import Reference2, setup_default_connection
 from sota_extractor2.data.references import PReference, PAuthor, ReferenceStore
 from tqdm import tqdm
 from elasticsearch.helpers import bulk
@@ -12,8 +13,9 @@ import xml.etree.ElementTree as ET
 # required for bulk saving
 http.client._MAXHEADERS = 1000
 
-# papers_path = Path("/tmp/papers/papers-with-abstracts.json")
-papers_path = Path("/tmp/papers/papers-with-abstracts-duplicates.json")
+setup_default_connection()
+
+papers_path = Path("/data/dblp/papers/papers-with-abstracts.json")
 
 
 def read_pwc_papers(path):
@@ -54,23 +56,27 @@ def from_paper_dict(paper):
     )
 
 
+def _text(elem): return "".join(elem.itertext())
+
+
 def from_paper_elem(elem):
-    authors_str = [a.text.strip() for a in elem.findall("author") if a.text.strip()]
+    authors_str = [_text(a).strip() for a in elem.findall("author")]
+    authors_str = [s for s in authors_str if s]
     authors = [PAuthor.from_fullname(a) for a in authors_str]
     arxiv_id = None
     url = None
     for ee in elem.findall("ee"):
         if url is None or "oa" in ee.attrib: # prefere open access urls
-            url = ee.text
-        m = arxiv_url_only_re.match(ee.text)
+            url = _text(ee)
+        m = arxiv_url_only_re.match(_text(ee))
         if m:
-            url = ee.text
+            url = _text(ee) # prefere arxiv urls
             arxiv_id = m.group("arxiv_id")
             break
     title = None
     title_elem = elem.find("title")
     if title_elem is not None:
-        title = title_elem.text.rstrip(" .")
+        title = _text(title_elem).rstrip(" .")
     return PReference(
         title=title,
         authors=authors,
@@ -80,9 +86,14 @@ def from_paper_elem(elem):
     )
 
 
-def merge_references(p_references):
+def merge_references(p_references, elastic_references):
+    uids = Counter([p_ref.unique_id() for p_ref in p_references])
     for p_ref in tqdm(p_references):
         uid = p_ref.unique_id()
+        # ignore papers with too common title
+        # (often these are "Editorial", "Preface", "Letter")
+        if uids[uid] > 5:
+            continue
         e_ref = elastic_references.get(uid)
         if not e_ref:
             e_ref = Reference2.from_ref(p_ref)
@@ -92,6 +103,19 @@ def merge_references(p_references):
 
 def save_all(docs):
     bulk(connections.get_connection(), (d.to_dict(True) for d in docs), chunk_size=500)
+
+
+def get_elastic_references(unique_ids, chunk_size=1000):
+    elastic_references = {}
+    i = 0
+    while i < len(unique_ids):
+        ids = unique_ids[i:i+chunk_size]
+        i += chunk_size
+        elastic_references.update({
+            uid: ref for uid, ref in zip(ids, Reference2.mget(ids))
+            if ref
+        })
+    return elastic_references
 
 
 def init_pwc():
@@ -105,29 +129,26 @@ def init_pwc():
     p_references = [ref for ref in p_references if ref.unique_id()]
 
     all_ids = list(set(ref.unique_id() for ref in p_references))
-    elastic_references = {
-        uid: ref for uid, ref in zip(all_ids, Reference2.mget(all_ids))
-        if ref
-    }
-
-    merge_references(p_references)
+    elastic_references = get_elastic_references(all_ids)
+    merge_references(p_references, elastic_references)
     save_all(elastic_references.values())
 
 
 def init_dblp():
-    dblp_xml = ET.parse(str(Path.home() / "data" / "dblp" / "dblp-10k-noent.xml"))
+    dblp_xml = ET.parse(str(Path("/data") / "dblp" / "dblp-noent.xml"))
+    #dblp_xml = ET.parse(str(Path("/data") / "dblp" / "dblp-small-noent.xml"))
     root = dblp_xml.getroot()
-    p_references = [from_paper_elem(elem) for elem in root.getchildren()]
+    p_references = [from_paper_elem(elem) for elem in root]
     p_references = [ref for ref in p_references if ref.unique_id()]
 
     all_ids = list(set(ref.unique_id() for ref in p_references))
-    elastic_references = {
-        uid: ref for uid, ref in zip(all_ids, Reference2.mget(all_ids))
-        if ref
-    }
+    # todo: add references2 index initialization
+    elastic_references = {} #get_elastic_references(all_ids)
 
-    merge_references(p_references)
+    merge_references(p_references, elastic_references)
     save_all(elastic_references.values())
 
+# Reference2._index.delete()
+Reference2.init()
 init_dblp()
-#init_pwc()
+init_pwc()

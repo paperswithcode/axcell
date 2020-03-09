@@ -5,6 +5,7 @@ from warnings import warn
 
 import json
 import regex as re
+from unidecode import unidecode
 import requests
 import shelve
 import xmltodict
@@ -33,7 +34,7 @@ def strip_anchor(ref_str):
 
 _tokenizer_re = re.compile(r'[^/a-z0-9\\:?#\[\]\(\).-–]+')
 def normalize_title(s, join=True):
-    toks = _tokenizer_re.split(s.lower())
+    toks = _tokenizer_re.split(unidecode(s).lower())
     return "-".join(toks).strip() if join else toks
 
 def to_normal_dict(d):
