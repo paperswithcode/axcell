@@ -2,7 +2,8 @@ import re
 import json
 from pathlib import Path
 from collections import Counter
-from sota_extractor2.data.elastic import Reference2, setup_default_connection
+from sota_extractor2.data.elastic import Reference2
+from elasticsearch_dsl import connections
 from sota_extractor2.data.references import PReference, PAuthor, ReferenceStore
 from tqdm import tqdm
 from elasticsearch.helpers import bulk
@@ -13,7 +14,7 @@ import xml.etree.ElementTree as ET
 # required for bulk saving
 http.client._MAXHEADERS = 1000
 
-setup_default_connection()
+connections.create_connection(hosts=['elasticsearch'], timeout=20)
 
 papers_path = Path("/data/dblp/papers/papers-with-abstracts.json")
 

@@ -17,33 +17,7 @@ connections.create_connection(hosts=['10.0.1.145'], timeout=20)
 pc = PaperCollection.from_pickle("/mnt/efs/pwc/data/pc-small-noann.pkl")
 
 
-def get_refstrings(p):
-    paper = p.text if hasattr(p, 'text') else p
-    if not hasattr(paper, 'fragments'):
-        return
-    fragments = paper.fragments
-    ref_sec_started = False
-    for f in reversed(fragments):
-        if f.header.startswith('xxanchor-bib'):
-            ref_sec_started = True
-            yield f.text
-        elif ref_sec_started:
-            # todo: check if a paper can have multiple bibliography sections
-            # (f.e., one in the main paper and one in the appendix)
-            break  # the refsection is only at the end of paper
 
-
-_ref_re = regex.compile(r'^\s*(?:xxanchor-bib\s)?xxanchor-([a-zA-Z0-9-]+)\s(.+)$')
-def extract_refs(p):
-    for ref in get_refstrings(p):
-        m = _ref_re.match(ref)
-        if m:
-            ref_id, ref_str = m.groups()
-            yield {
-                "paper_arxiv_id": p.arxiv_no_version,
-                "ref_id": ref_id,
-                "ref_str": ref_str.strip(r'\s')
-            }
 
 class PaperCollectionReferenceParser:
     def __init__(self):

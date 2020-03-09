@@ -1,6 +1,7 @@
 import pandas as pd
 import json
 from collections import defaultdict
+from pathlib import Path
 
 
 # these functions are used to cache various results
@@ -10,26 +11,38 @@ from collections import defaultdict
 # can be changed.
 
 
+def _load_json(path):
+    with Path(path).open('rt') as f:
+        return json.load(f)
+
+
+def _save_json(obj, path):
+    with Path(path).open('wt') as f:
+        json.dump(obj, f)
+
+
+def load_references(path):
+    return _load_json(path)
+
+
+def save_references(references, path):
+    _save_json(references, path)
+
+
 def load_tags(path):
-    with open(path, 'rt') as f:
-        tags = json.load(f)
-    return tags
+    return _load_json(path)
 
 
 def save_tags(tags, path):
-    with open(path, 'wt') as f:
-        json.dump(tags, f)
+    _save_json(tags, path)
 
 
 def load_structure(path):
-    with open(path, 'rt') as f:
-        structure = json.load(f)
-    return structure
+    return _load_json(path)
 
 
 def save_structure(structure, path):
-    with open(path, 'wt') as f:
-        json.dump(structure, f)
+    _save_json(structure, path)
 
 
 def load_proposals(path):
