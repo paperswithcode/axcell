@@ -108,7 +108,11 @@ class Fragment(Document):
     )
     outer_headers = Text(analyzer=html_strip, )
 
+    class Meta:
+        doc_type = '_doc'
+
     class Index:
+        doc_type = '_doc'
         name = 'paper-fragments'
 
     @classmethod
@@ -138,7 +142,11 @@ class Paper(Document):
         analyzer=html_strip
     )
 
+    class Meta:
+        doc_type = '_doc'
+
     class Index:
+        doc_type = '_doc'
         name = 'papers'
 
     def to_json(self):
@@ -290,7 +298,11 @@ class Reference(Document):
     urls = Keyword()
     is_ml = Boolean()
 
+    class Meta:
+        doc_type = '_doc'
+
     class Index:
+        doc_type = '_doc'
         name = 'references'
 
     def __repr__(self):
@@ -317,7 +329,11 @@ class Reference2(Document):
     pwc_slug = Keyword()
     orig_refs = Text()
 
+    class Meta:
+        doc_type = '_doc'
+
     class Index:
+        doc_type = '_doc'
         name = 'references2'
 
     def add_ref(self, ref):
