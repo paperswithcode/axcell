@@ -298,7 +298,7 @@ class ReferenceStore:
 
     def get_reference(self, key):
         if key not in self.refdb:
-            self.refdb[key] = Reference2.mget(key)[0]
+            self.refdb[key] = Reference2.mget([key])[0]
         return self.refdb[key]
 
     def add_or_merge(self, ref):
