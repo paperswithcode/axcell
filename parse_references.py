@@ -28,7 +28,7 @@ class PaperCollectionReferenceParser:
     def parse_refs(self, p):
         for d in extract_refs(p):
             if not d["ref_id"].startswith("pwc-"):
-                key = d["paper_arxiv_id"] + d["ref_id"]
+                key = p.arxiv_no_version + d["ref_id"]
                 if key not in self.cache:
                     new_id = self.refsdb.add_reference_string(d['ref_str'])
                     if new_id is not None:

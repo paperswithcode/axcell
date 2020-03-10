@@ -370,7 +370,6 @@ def extract_refs(p):
         if m:
             ref_id, ref_str = m.groups()
             yield {
-                "paper_arxiv_id": p.arxiv_no_version,
                 "ref_id": ref_id,
                 "ref_str": ref_str.strip(r'\s')
             }
