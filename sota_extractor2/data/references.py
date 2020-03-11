@@ -6,6 +6,7 @@ from warnings import warn
 import json
 import regex as re
 from unidecode import unidecode
+import time
 import requests
 import shelve
 import xmltodict
@@ -45,9 +46,11 @@ def to_normal_dict(d):
     return d
 
 class GrobidClient:
-    def __init__(self, cache_path=None, host='127.0.0.1', port=8070):
+    def __init__(self, cache_path=None, host='127.0.0.1', port=8070, max_tries=4, retry_wait=2):
         self.host = host
         self.port = port
+        self.max_tries = max(max_tries, 1)
+        self.retry_wait = retry_wait
         self.cache_path_shelve = Path.home()/'.cache'/'refs' /'gobrid'/'gobrid.pkl' if cache_path is None else Path(cache_path)
         self.cache_path = Path.home() / '.cache' / 'refs' /'gobrid' / 'gobrid.db' if cache_path is None else Path(cache_path)
         self.cache = None
@@ -69,11 +72,22 @@ class GrobidClient:
         old_cache.close()
         return count
 
+    def _post(self, data):
+        tries = 0
+        while tries < self.max_tries:
+            r = requests.post(f'http://{self.host}:{self.port}/api/processCitation', data=data)
+            if r.status_code != 503:
+                return r
+            tries += 1
+            if tries < self.max_tries:
+                time.sleep(self.retry_wait)
+        raise ConnectionRefusedError(r.reason)
+
     def parse_ref_str_to_tei_dict(self, ref_str):
         cache = self.get_cache()
         d = cache.get(ref_str)
         if d is None:  # potential multiple recomputation in multithreading case
-            r = requests.post(f'http://{self.host}:{self.port}/api/processCitation', data={'citations': ref_str})
+            r = self._post(data={'citations': ref_str})
             d = xmltodict.parse(r.content.decode("utf-8"))
             d = to_normal_dict(d)
             cache[ref_str] = d
