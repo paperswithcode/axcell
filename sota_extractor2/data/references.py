@@ -75,9 +75,16 @@ class GrobidClient:
     def _post(self, data):
         tries = 0
         while tries < self.max_tries:
-            r = requests.post(f'http://{self.host}:{self.port}/api/processCitation', data=data)
+            with requests.Session() as s:
+                r = s.post(
+                    f'http://{self.host}:{self.port}/api/processCitation',
+                    data=data,
+                    headers={'Connection': 'close'}
+                )
+            if r.status_code in [200, 204]:
+                return r.content.decode("utf-8")
             if r.status_code != 503:
-                return r
+                raise RuntimeError(f"{r.status_code} {r.reason}\n{r.content}")
             tries += 1
             if tries < self.max_tries:
                 time.sleep(self.retry_wait)
@@ -87,8 +94,8 @@ class GrobidClient:
         cache = self.get_cache()
         d = cache.get(ref_str)
         if d is None:  # potential multiple recomputation in multithreading case
-            r = self._post(data={'citations': ref_str})
-            d = xmltodict.parse(r.content.decode("utf-8"))
+            content = self._post(data={'citations': ref_str})
+            d = xmltodict.parse(content)
             d = to_normal_dict(d)
             cache[ref_str] = d
         return d
