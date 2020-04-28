@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 import spacy
 from scispacy.abbreviation import AbbreviationDetector
 from .utils import normalize_cell, normalize_dataset

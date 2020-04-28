@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 import pandas as pd
 import json
 from collections import defaultdict

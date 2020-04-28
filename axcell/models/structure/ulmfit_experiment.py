@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 from .experiment import Experiment, label_map_ext
 from axcell.models.structure.nbsvm import *
 from sklearn.metrics import confusion_matrix

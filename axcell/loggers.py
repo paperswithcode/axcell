@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 import sys
 import pandas as pd
 from .models.structure.experiment import Experiment, label_map, Labels

@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 # Open source tools lfoppiano/grobid
 from collections import OrderedDict, Counter, Iterable, defaultdict
 from dataclasses import dataclass, field

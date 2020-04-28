@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 from IPython.core.display import display, HTML
 from .table_style import table_style
 import numpy as np

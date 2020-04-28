@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 SOURCE=$(realpath "$1")
 [ ! -f "$SOURCE" ] && echo "File $SOURCE not found." >&2 && exit 1
 mkdir -p $(dirname "$2")

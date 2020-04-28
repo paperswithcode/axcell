@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 import fire
 from sota_extractor.taskdb import TaskDB
 from pathlib import Path

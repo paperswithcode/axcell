@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 from .bm25_naive import linked_proposals
 from ...pipeline_logger import pipeline_logger
 

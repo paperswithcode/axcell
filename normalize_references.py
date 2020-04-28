@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 import fire
 from unidecode import unidecode
 from pathlib import Path

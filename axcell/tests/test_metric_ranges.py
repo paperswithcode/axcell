@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 import pytest
 from decimal import Decimal
 from axcell.models.linking.bm25_naive import convert_metric

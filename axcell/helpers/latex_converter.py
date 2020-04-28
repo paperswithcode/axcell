@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 import docker
 from docker.errors import ContainerError, ImageNotFound
 from pathlib import Path

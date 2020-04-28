@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 SOURCE_DIR=$(realpath "$1") 	#~/arxiv/unpacked/1701/1701.xyz
 [ ! -d "$SOURCE_DIR" ] && echo "Directory $SOURCE_DIR not found." >&2 && exit 1
 mkdir -p $(dirname "$2")

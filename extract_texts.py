@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 import fire
 from axcell.data.elastic import Paper
 from pathlib import Path

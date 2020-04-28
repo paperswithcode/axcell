@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 import requests
 from axcell import config
 from axcell.data.paper_collection import _load_annotated_papers

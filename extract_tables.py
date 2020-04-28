@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 import sys
 from bs4 import BeautifulSoup, Comment, NavigableString
 import fire

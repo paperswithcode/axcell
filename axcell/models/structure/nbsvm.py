@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 import re
 import string
 from fastai.text import *  # just for utilty functions pd, np, Path etc.

@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
+
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 import pandas as pd
 import regex
 import diskcache

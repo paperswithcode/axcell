@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 from bs4 import BeautifulSoup
 import pandas as pd
 import re

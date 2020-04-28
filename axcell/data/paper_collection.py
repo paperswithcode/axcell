@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 from .elastic import Paper as PaperText, Fragments
 from .table import Table, read_tables
 from .json import load_gql_dump

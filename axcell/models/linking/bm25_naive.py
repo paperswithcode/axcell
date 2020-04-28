@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 import re
 from decimal import Decimal, localcontext, InvalidOperation
 from dataclasses import dataclass

@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 from fastai.text.interpret import TextClassificationInterpretation as AbsTextClassificationInterpretation, _eval_dropouts
 from fastai.basic_data import DatasetType
 import torch

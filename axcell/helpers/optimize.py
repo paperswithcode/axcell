@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 import pandas as pd, numpy as np
 from dataclasses import dataclass, replace
 from axcell.models.linking.metrics import CM

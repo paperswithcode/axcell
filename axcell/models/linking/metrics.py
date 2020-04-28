@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 from fastai.text import *
 from sklearn.metrics import confusion_matrix
 import seaborn as sn

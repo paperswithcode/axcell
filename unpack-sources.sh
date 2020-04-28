@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 archive="$1"
 outdir="$2"
 

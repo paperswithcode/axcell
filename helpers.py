@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 from fire import Fire
 from pathlib import Path
 from axcell.data.paper_collection import PaperCollection

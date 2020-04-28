@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 from ...pipeline_logger import pipeline_logger
 import pandas as pd
 from enum import Enum

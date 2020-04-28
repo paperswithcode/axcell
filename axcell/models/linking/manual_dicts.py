@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 metrics = {
     'Accuracy': ['acc', 'accuracy'],
     'BLEU': ['bleu'],

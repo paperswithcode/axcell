@@ -1,4 +1,6 @@
 
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 def set_seed(seed, name, quiet=False, all_gpus=True):
     import torch
     import numpy as np

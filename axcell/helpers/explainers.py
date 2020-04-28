@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 from axcell.models.linking.metrics import Metrics
 from ..models.structure import TableType
 from ..loggers import StructurePredictionEvaluator, LinkerEvaluator, FilteringEvaluator

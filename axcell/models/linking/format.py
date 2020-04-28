@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 import re
 from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP, InvalidOperation
 

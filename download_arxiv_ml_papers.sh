@@ -1,4 +1,7 @@
 #!/bin/bash
+
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 index_dir="index"
 papers_dir="papers"
 src_dir="src"

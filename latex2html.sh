@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 OUTNAME="$1"
 echo $OUTNAME
 RO_SOURCE_DIR="${2:-/files/ro-source}"

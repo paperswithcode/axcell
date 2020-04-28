@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 import re
 from bs4 import BeautifulSoup, Comment, Tag, NavigableString
 import codecs

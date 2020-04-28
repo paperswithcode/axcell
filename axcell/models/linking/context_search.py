@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 # metrics[taxonomy name] is a list of normalized evidences for taxonomy name
 from collections import Counter
 
