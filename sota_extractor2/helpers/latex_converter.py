@@ -60,6 +60,8 @@ class LatexConverter:
         except ContainerError as err:
             if err.exit_status == MAGIC_EXIT_ERROR:
                 raise LatexConversionError("LaTeXML was unable to convert source code of this paper")
+            if "Unable to find any suitable tex file" in err.stderr.decode('utf-8'):
+                raise LatexConversionError("Unable to find any suitable tex file")
             raise
 
     # todo: check for errors

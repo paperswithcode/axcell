@@ -1,4 +1,6 @@
 from .experiment import Experiment, label_map_ext
+from sota_extractor2.models.structure.nbsvm import *
+from sklearn.metrics import confusion_matrix
 from .nbsvm import preds_for_cell_content, preds_for_cell_content_max, preds_for_cell_content_multi
 import dataclasses
 from dataclasses import dataclass
@@ -134,3 +136,135 @@ class ULMFiTExperiment(Experiment):
                 true_y_ext = tdf["cell_type"].apply(lambda x: label_map_ext.get(x, 0))
             self._set_results(prefix, preds, true_y, true_y_ext)
             self._preds.append(probs)
+
+
+@dataclass
+class ULMFiTTableTypeExperiment(ULMFiTExperiment):
+    sigmoid: bool = True
+    distinguish_ablation: bool = True
+    irrelevant_as_class: bool = False
+    caption: bool = True
+    first_row: bool = False
+    first_column: bool = False
+    referencing_sections: bool = False
+    dedup_seqs: bool = False
+
+    def _save_model(self, path):
+        pass
+
+    def _transform_df(self, df):
+        df = df.copy(True)
+        if self.sigmoid:
+            if self.irrelevant_as_class:
+                df["irrelevant"] = ~(df["sota"] | df["ablation"])
+            if not self.distinguish_ablation:
+                df["sota"] = df["sota"] | df["ablation"]
+                df = df.drop(columns=["ablation"])
+        else:
+            if self.distinguish_ablation:
+                df["class"] = 2
+                df.loc[df.ablation, "class"] = 1
+                df.loc[df.sota, "class"] = 0
+            else:
+                df["class"] = 1
+                df.loc[df.sota, "class"] = 0
+                df.loc[df.ablation, "class"] = 0
+
+        df["label"] = 2
+        df.loc[df.ablation, "label"] = 1
+        df.loc[df.sota, "label"] = 0
+        drop_columns = []
+        if not self.caption:
+            drop_columns.append("caption")
+        if not self.first_column:
+            drop_columns.append("col0")
+        if not self.first_row:
+            drop_columns.append("row0")
+        if not self.referencing_sections:
+            drop_columns.append("sections")
+        df = df.drop(columns=drop_columns)
+        return df
+
+    def evaluate(self, model, train_df, valid_df, test_df):
+        valid_probs = model.get_preds(ds_type=DatasetType.Valid, ordered=True)[0].cpu().numpy()
+        test_probs = model.get_preds(ds_type=DatasetType.Test, ordered=True)[0].cpu().numpy()
+        train_probs = model.get_preds(ds_type=DatasetType.Train, ordered=True)[0].cpu().numpy()
+        self._preds = []
+
+        def multipreds2preds(preds, threshold=0.5):
+            bs = preds.shape[0]
+            return np.concatenate([probs, np.ones((bs, 1)) * threshold], axis=-1).argmax(-1)
+
+        for prefix, tdf, probs in zip(["train", "valid", "test"],
+                                      [train_df, valid_df, test_df],
+                                      [train_probs, valid_probs, test_probs]):
+
+            if self.sigmoid and not self.irrelevant_as_class:
+                preds = multipreds2preds(probs)
+            else:
+                preds = np.argmax(probs, axis=1)
+            if not self.distinguish_ablation:
+                preds *= 2
+
+            true_y = tdf["label"]
+            self._set_results(prefix, preds, true_y)
+            self._preds.append(probs)
+
+    def _set_results(self, prefix, preds, true_y, true_y_ext=None):
+        def metrics(preds, true_y):
+            y = true_y
+            p = preds
+
+            if self.distinguish_ablation:
+                g = {0: 0, 1: 0, 2: 1}.get
+                bin_y = np.array([g(x) for x in y])
+                bin_p = np.array([g(x) for x in p])
+                irr = 2
+            else:
+                bin_y = y
+                bin_p = p
+                irr = 1
+
+            acc = (p == y).mean()
+            tp = ((y != irr) & (p == y)).sum()
+            fp = ((p != irr) & (p != y)).sum()
+            fn = ((y != irr) & (p == irr)).sum()
+
+            bin_acc = (bin_p == bin_y).mean()
+            bin_tp = ((bin_y != 1) & (bin_p == bin_y)).sum()
+            bin_fp = ((bin_p != 1) & (bin_p != bin_y)).sum()
+            bin_fn = ((bin_y != 1) & (bin_p == 1)).sum()
+
+            prec = tp / (fp + tp)
+            reca = tp / (fn + tp)
+            bin_prec = bin_tp / (bin_fp + bin_tp)
+            bin_reca = bin_tp / (bin_fn + bin_tp)
+            return {
+                "precision": prec,
+                "accuracy": acc,
+                "recall": reca,
+                "TP": tp,
+                "FP": fp,
+                "bin_precision": bin_prec,
+                "bin_accuracy": bin_acc,
+                "bin_recall": bin_reca,
+                "bin_TP": bin_tp,
+                "bin_FP": bin_fp,
+            }
+
+        m = metrics(preds, true_y)
+        r = {}
+        r[f"{prefix}_accuracy"] = m["accuracy"]
+        r[f"{prefix}_precision"] = m["precision"]
+        r[f"{prefix}_recall"] = m["recall"]
+        r[f"{prefix}_bin_accuracy"] = m["bin_accuracy"]
+        r[f"{prefix}_bin_precision"] = m["bin_precision"]
+        r[f"{prefix}_bin_recall"] = m["bin_recall"]
+        r[f"{prefix}_cm"] = confusion_matrix(true_y, preds).tolist()
+        self.update_results(**r)
+
+    def get_cm_labels(self, cm):
+        if len(cm) == 3:
+            return ["SOTA", "ABLATION", "IRRELEVANT"]
+        else:
+            return ["SOTA", "IRRELEVANT"]

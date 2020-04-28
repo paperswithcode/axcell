@@ -26,10 +26,10 @@ class Taxonomy:
         self._complementary = {}
         for record in self.canonical_records:
             metric = record["metric"]
-            if metric in complementary_metrics:
+            if metric.lower() in complementary_metrics:
                 task = record["task"]
                 dataset = record["dataset"]
-                comp_metric = complementary_metrics[record["metric"]]
+                comp_metric = complementary_metrics[metric.lower()]
                 complementary.append(
                     dict(
                         task=task,

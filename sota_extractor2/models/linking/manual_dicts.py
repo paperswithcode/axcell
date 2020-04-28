@@ -163,15 +163,36 @@ datasets = {
 
 tasks = {}
 
-complementary_metrics = {
+complementary_metrics = {k.lower(): v for k, v in {
     'Accuracy': 'Error',
     'Error': 'Accuracy',
+    'Acc': 'Err',
+    'Err': 'Acc',
     'Percentage Error': 'Accuracy',
+    'Error rate': 'Accuracy',
     'Word Error Rate': 'Word Accuracy',
     'Word Error Rate (WER)': 'Word Accuracy',
     'Top-1 Accuracy': 'Top-1 Error Rate',
-    'Top-5 Accuracy': 'Top-5 Error',
-}
+    'Top-3 Accuracy': 'Top-3 Error Rate',
+    'Top-5 Accuracy': 'Top-5 Error Rate',
+    'Top 1 Accuracy': 'Top 1 Error Rate',
+    'Top 3 Accuracy': 'Top 3 Error Rate',
+    'Top 5 Accuracy': 'Top 5 Error Rate',
+    'Top-1 Error Rate': 'Top-1 Accuracy',
+    'Top-3 Error Rate': 'Top-3 Accuracy',
+    'Top-5 Error Rate': 'Top-5 Accuracy',
+    'Top 1 Error Rate': 'Top 1 Accuracy',
+    'Top 3 Error Rate': 'Top 3 Accuracy',
+    'Top 5 Error Rate': 'Top 5 Accuracy',
+    'Top-1 Error': 'Top-1 Accuracy',
+    'Top-3 Error': 'Top-3 Accuracy',
+    'Top-5 Error': 'Top-5 Accuracy',
+    'Top 1 Error': 'Top 1 Accuracy',
+    'Top 3 Error': 'Top 3 Accuracy',
+    'Top 5 Error': 'Top 5 Accuracy',
+    'Classification Accuracy': 'Classification Error',
+    'Classification Error': 'Classification Accuracy',
+}.items()}
 
 stop_words = {
     "a", "an", "and", "are", "as", "at", "be", "but", "by",

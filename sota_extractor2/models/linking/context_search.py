@@ -80,7 +80,7 @@ class EvidenceFinder:
     def find_tasks(self, text):
         return EvidenceFinder.find_names(text, self.all_tasks_trie)
 
-    def _init_structs(self, taxonomy):
+    def init_evidence_dicts(self, taxonomy):
         self.tasks, self.datasets, self.metrics = EvidenceFinder.get_basic_dicts(taxonomy)
         EvidenceFinder.merge_evidences(self.tasks, manual_dicts.tasks)
         EvidenceFinder.merge_evidences(self.datasets, manual_dicts.datasets)
@@ -91,6 +91,9 @@ class EvidenceFinder:
             'LibriSpeech dev-clean': ['libri speech dev clean', 'libri speech', 'dev', 'clean', 'dev clean', 'development'],
             'LibriSpeech dev-other': ['libri speech dev other', 'libri speech', 'dev', 'other', 'dev other', 'development', 'noisy'],
         })
+
+    def _init_structs(self, taxonomy):
+        self.init_evidence_dicts(taxonomy)
 
         self.datasets = {k: set(v) for k, v in self.datasets.items()}
         self.metrics = {k: set(v) for k, v in self.metrics.items()}
