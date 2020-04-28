@@ -5,7 +5,7 @@ from .nbsvm import preds_for_cell_content, preds_for_cell_content_max, preds_for
 import dataclasses
 from dataclasses import dataclass
 from typing import Tuple
-from sota_extractor2.helpers.training import set_seed
+from axcell.helpers.training import set_seed
 from fastai.text import *
 import numpy as np
 from pathlib import Path

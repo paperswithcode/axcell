@@ -1,11 +1,11 @@
-from sota_extractor2.models.linking.metrics import Metrics
+from axcell.models.linking.metrics import Metrics
 from ..models.structure import TableType
 from ..loggers import StructurePredictionEvaluator, LinkerEvaluator, FilteringEvaluator
 import pandas as pd
 import numpy as np
 from ..helpers.jupyter import table_to_html
-from sota_extractor2.models.linking.format import extract_value
-from sota_extractor2.helpers.optimize import optimize_filters
+from axcell.models.linking.format import extract_value
+from axcell.helpers.optimize import optimize_filters
 
 
 class Reason:

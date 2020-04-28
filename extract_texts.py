@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import fire
-from sota_extractor2.data.elastic import Paper
+from axcell.data.elastic import Paper
 from pathlib import Path
 
 def extract_text(source, target):

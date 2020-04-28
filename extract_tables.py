@@ -13,7 +13,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Set
 
-from sota_extractor2.data.table import Table
+from axcell.data.table import Table
 
 # begin of dirty hack
 # pandas parsing of html tables is really nice

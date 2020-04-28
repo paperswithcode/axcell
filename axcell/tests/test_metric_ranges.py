@@ -1,6 +1,6 @@
 import pytest
 from decimal import Decimal
-from sota_extractor2.models.linking.bm25_naive import convert_metric
+from axcell.models.linking.bm25_naive import convert_metric
 
 raw_values = ["0.21", "0.21%", "21", "21%"]
 ranges = ["0-1", "1-100", "abs", ""]

@@ -10,7 +10,7 @@ import sys
 from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP, InvalidOperation
 from collections import Counter, namedtuple
 from joblib import delayed, Parallel
-from sota_extractor2.data.paper_collection import PaperCollection, remove_arxiv_version
+from axcell.data.paper_collection import PaperCollection, remove_arxiv_version
 from functools import reduce
 
 arxiv_url_re = re.compile(r"^https?://(www.)?arxiv.org/(abs|pdf|e-print)/(?P<arxiv_id>\d{4}\.[^./]*)(\.pdf)?$")

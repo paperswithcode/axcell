@@ -3,7 +3,7 @@ import tarfile
 import gzip
 from pathlib import Path
 from shutil import copyfileobj
-from sota_extractor2.errors import UnpackError
+from axcell.errors import UnpackError
 from ..pipeline_logger import pipeline_logger
 
 

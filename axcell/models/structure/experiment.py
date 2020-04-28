@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from sota_extractor2.models.structure.nbsvm import *
+from axcell.models.structure.nbsvm import *
 from sklearn.metrics import confusion_matrix
 from matplotlib  import pyplot as plt
 import seaborn as sn

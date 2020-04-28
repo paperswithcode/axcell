@@ -1,6 +1,6 @@
 import requests
-from sota_extractor2 import config
-from sota_extractor2.data.paper_collection import _load_annotated_papers
+from axcell import config
+from axcell.data.paper_collection import _load_annotated_papers
 
 
 def run_graphql_query(query):

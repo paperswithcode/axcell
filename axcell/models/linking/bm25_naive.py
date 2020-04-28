@@ -8,7 +8,7 @@ import logging
 #from .extractors import DatasetExtractor
 import spacy
 from scispacy.abbreviation import AbbreviationDetector
-from sota_extractor2.models.linking.format import extract_value
+from axcell.models.linking.format import extract_value
 
 
 @dataclass()

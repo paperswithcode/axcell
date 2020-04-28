@@ -2,8 +2,8 @@ import pandas as pd
 from django.db import connection
 from IPython.core.display import display
 
-from sota_extractor2.models.linking.metrics import Metrics
-from sota_extractor2.models.linking.format import extract_value
+from axcell.models.linking.metrics import Metrics
+from axcell.models.linking.format import extract_value
 
 
 def q(query, limit=10, index_col=None):

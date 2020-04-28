@@ -1,7 +1,7 @@
 from pathlib import Path
 import json
 from collections import OrderedDict
-from sota_extractor2.models.linking.manual_dicts import complementary_metrics
+from axcell.models.linking.manual_dicts import complementary_metrics
 
 
 class Taxonomy:

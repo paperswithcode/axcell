@@ -1,9 +1,9 @@
 # metrics[taxonomy name] is a list of normalized evidences for taxonomy name
 from collections import Counter
 
-from sota_extractor2.models.linking.acronym_extractor import AcronymExtractor
-from sota_extractor2.models.linking.probs import get_probs, reverse_probs
-from sota_extractor2.models.linking.utils import normalize_dataset, normalize_dataset_ws, normalize_cell, normalize_cell_ws
+from axcell.models.linking.acronym_extractor import AcronymExtractor
+from axcell.models.linking.probs import get_probs, reverse_probs
+from axcell.models.linking.utils import normalize_dataset, normalize_dataset_ws, normalize_cell, normalize_cell_ws
 from scipy.special import softmax
 import re
 import pandas as pd
@@ -11,9 +11,9 @@ import numpy as np
 import ahocorasick
 from numba import njit, typed, types
 
-from sota_extractor2.pipeline_logger import pipeline_logger
+from axcell.pipeline_logger import pipeline_logger
 
-from sota_extractor2.models.linking import manual_dicts
+from axcell.models.linking import manual_dicts
 from collections import Counter
 
 def dummy_item(reason):

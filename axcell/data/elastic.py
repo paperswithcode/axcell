@@ -11,7 +11,7 @@ from IPython.display import display, Markdown
 
 from elasticsearch_dsl import connections
 
-from sota_extractor2.data.doc_utils import get_text, content_in_section, group_content, read_html, put_dummy_anchors, clean_abstract
+from axcell.data.doc_utils import get_text, content_in_section, group_content, read_html, put_dummy_anchors, clean_abstract
 from .. import config
 from pathlib import Path
 import sys
@@ -431,7 +431,7 @@ def cell_type_heuristic(orig_text, text, query):
 
 
 def display_fragment(f, cell_type="", display=True):
-    from sota_extractor2.helpers.jupyter import display_html
+    from axcell.helpers.jupyter import display_html
     cell_type = f" - <b> {cell_type} </b>" if cell_type else ""
     pre = f"<br/>{f.header}{cell_type}<br/>"
     body = " ... ".join(f.meta.highlight.text)

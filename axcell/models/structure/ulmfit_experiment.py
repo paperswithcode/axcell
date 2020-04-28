@@ -1,11 +1,11 @@
 from .experiment import Experiment, label_map_ext
-from sota_extractor2.models.structure.nbsvm import *
+from axcell.models.structure.nbsvm import *
 from sklearn.metrics import confusion_matrix
 from .nbsvm import preds_for_cell_content, preds_for_cell_content_max, preds_for_cell_content_multi
 import dataclasses
 from dataclasses import dataclass
 from typing import Tuple
-from sota_extractor2.helpers.training import set_seed
+from axcell.helpers.training import set_seed
 from fastai.text import *
 from fastai.text.learner import _model_meta
 import numpy as np

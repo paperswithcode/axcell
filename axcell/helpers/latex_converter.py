@@ -4,7 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from bs4 import BeautifulSoup
 
-from sota_extractor2.errors import LatexConversionError
+from axcell.errors import LatexConversionError
 
 
 def ro_bind(path): return dict(bind=path, mode='ro')

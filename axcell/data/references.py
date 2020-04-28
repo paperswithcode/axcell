@@ -16,8 +16,8 @@ from pathlib import Path
 
 import diskcache as dc
 
-from sota_extractor2 import config
-from sota_extractor2.data.elastic import Reference2, ID_LIMIT
+from axcell import config
+from axcell.data.elastic import Reference2, ID_LIMIT
 
 
 def just_letters(s, _tok_re = re.compile(r'[^\p{L}]+')):

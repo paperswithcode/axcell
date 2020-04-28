@@ -6,7 +6,7 @@ import setuptools
 directory = os.path.dirname(os.path.abspath(__file__))
 
 # Extract version information
-# path = os.path.join(directory, 'sota_extractor2', '__init__.py')
+# path = os.path.join(directory, 'axcell', '__init__.py')
 # with open(path) as read_file:
 #     text = read_file.read()
 # pattern = re.compile(r"^__version__ = ['\"]([^'\"]*)['\"]", re.MULTILINE)
@@ -19,7 +19,7 @@ version="2.0-alpha"
 #     long_description = read_file.read()
 long_description = ""
 setuptools.setup(
-    name='sota_extractor2',
+    name='axcell',
     version=version,
     url='https://...',
     description='System for extracting data from arxiv papers',

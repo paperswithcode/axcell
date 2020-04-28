@@ -5,7 +5,7 @@ import string
 import ahocorasick
 import pickle
 from multiprocessing import Pool
-from sota_extractor2.data.doc_utils import get_text, read_html
+from axcell.data.doc_utils import get_text, read_html
 
 punctuation_table = str.maketrans('', '', string.punctuation)
 

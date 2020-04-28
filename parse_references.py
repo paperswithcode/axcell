@@ -6,11 +6,11 @@ import diskcache
 
 from fastai.text import progress_bar
 
-from sota_extractor2.data.references import *
+from axcell.data.references import *
 from functools import lru_cache
-from sota_extractor2.data.elastic import *
+from axcell.data.elastic import *
 
-from sota_extractor2.data.paper_collection import PaperCollection
+from axcell.data.paper_collection import PaperCollection
 
 connections.create_connection(hosts=['10.0.1.145'], timeout=20)
 

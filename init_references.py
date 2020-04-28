@@ -2,9 +2,9 @@ import re
 import json
 from pathlib import Path
 from collections import Counter
-from sota_extractor2.data.elastic import Reference2
+from axcell.data.elastic import Reference2
 from elasticsearch_dsl import connections
-from sota_extractor2.data.references import PReference, PAuthor, ReferenceStore
+from axcell.data.references import PReference, PAuthor, ReferenceStore
 from tqdm import tqdm
 from elasticsearch.helpers import bulk
 from elasticsearch_dsl.connections import connections

@@ -4,7 +4,7 @@ import re
 import gzip
 import pprint
 import requests
-from sota_extractor2 import config
+from axcell import config
 #%%
 def to_snake_case(name):
     #https://stackoverflow.com/questions/1175208/elegant-python-function-to-convert-camelcase-to-snake-case

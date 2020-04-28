@@ -1,6 +1,6 @@
 import pandas as pd, numpy as np
 from dataclasses import dataclass, replace
-from sota_extractor2.models.linking.metrics import CM
+from axcell.models.linking.metrics import CM
 from matplotlib import pyplot as plt
 import matplotlib.tri as tri
 
