@@ -98,3 +98,6 @@ venv.bak/
 .mypy_cache/
 .idea/*
 .vscode/settings.json
+
+# pytest
+.pytest_cache

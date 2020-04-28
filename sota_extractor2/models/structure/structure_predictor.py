@@ -35,7 +35,7 @@ n_classes = 5
 class TableStructurePredictor(ULMFiT_SP):
     step = "structure_prediction"
 
-    def __init__(self, path, file, crf_path=None, crf_model="crf.pkl",
+    def __init__(self, path, file, crf_path=None, crf_model=None,
                  sp_path=None, sp_model="spm.model", sp_vocab="spm.vocab"):
         super().__init__(path, file, sp_path, sp_model, sp_vocab)
 
@@ -43,9 +43,11 @@ class TableStructurePredictor(ULMFiT_SP):
         self.learner.model = cut_ulmfit_head(self.learner.model)
         self.learner.loss_func = None
 
-        #todo: make CRF optional
-        crf_path = Path(path) if crf_path is None else Path(crf_path)
-        self.crf = load_crf(crf_path / crf_model)
+        if crf_model is not None:
+            crf_path = Path(path) if crf_path is None else Path(crf_path)
+            self.crf = load_crf(crf_path / crf_model)
+        else:
+            self.crf = None
 
         # todo: clean Experiment from older approaches
         self._e = ULMFiTExperiment(remove_num=False, drop_duplicates=False,

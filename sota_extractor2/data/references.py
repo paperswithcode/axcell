@@ -5,6 +5,8 @@ from warnings import warn
 
 import json
 import regex as re
+from unidecode import unidecode
+import time
 import requests
 import shelve
 import xmltodict
@@ -33,7 +35,7 @@ def strip_anchor(ref_str):
 
 _tokenizer_re = re.compile(r'[^/a-z0-9\\:?#\[\]\(\).-–]+')
 def normalize_title(s, join=True):
-    toks = _tokenizer_re.split(s.lower())
+    toks = _tokenizer_re.split(unidecode(s).lower())
     return "-".join(toks).strip() if join else toks
 
 def to_normal_dict(d):
@@ -44,9 +46,11 @@ def to_normal_dict(d):
     return d
 
 class GrobidClient:
-    def __init__(self, cache_path=None, host='127.0.0.1', port=8070):
+    def __init__(self, cache_path=None, host='127.0.0.1', port=8070, max_tries=4, retry_wait=2):
         self.host = host
         self.port = port
+        self.max_tries = max(max_tries, 1)
+        self.retry_wait = retry_wait
         self.cache_path_shelve = Path.home()/'.cache'/'refs' /'gobrid'/'gobrid.pkl' if cache_path is None else Path(cache_path)
         self.cache_path = Path.home() / '.cache' / 'refs' /'gobrid' / 'gobrid.db' if cache_path is None else Path(cache_path)
         self.cache = None
@@ -68,12 +72,30 @@ class GrobidClient:
         old_cache.close()
         return count
 
+    def _post(self, data):
+        tries = 0
+        while tries < self.max_tries:
+            with requests.Session() as s:
+                r = s.post(
+                    f'http://{self.host}:{self.port}/api/processCitation',
+                    data=data,
+                    headers={'Connection': 'close'}
+                )
+            if r.status_code in [200, 204]:
+                return r.content.decode("utf-8")
+            if r.status_code != 503:
+                raise RuntimeError(f"{r.status_code} {r.reason}\n{r.content}")
+            tries += 1
+            if tries < self.max_tries:
+                time.sleep(self.retry_wait)
+        raise ConnectionRefusedError(r.reason)
+
     def parse_ref_str_to_tei_dict(self, ref_str):
         cache = self.get_cache()
         d = cache.get(ref_str)
         if d is None:  # potential multiple recomputation in multithreading case
-            r = requests.post(f'http://{self.host}:{self.port}/api/processCitation', data={'citations': ref_str})
-            d = xmltodict.parse(r.content.decode("utf-8"))
+            content = self._post(data={'citations': ref_str})
+            d = xmltodict.parse(content)
             d = to_normal_dict(d)
             cache[ref_str] = d
         return d
@@ -82,7 +104,6 @@ class GrobidClient:
         self.cache.close()
         self.cache = None
 
-grobidclient=GrobidClient(**config.grobid)
 
 def pop_first(dictionary, *path):
     if dictionary is None:
@@ -124,6 +145,14 @@ class PAuthor:
             warn(f"{err} - Unable to parse {d} as Author")
             print(d)
 
+    @classmethod
+    def from_fullname(cls, fullname):
+        names = fullname.split()
+        return cls(
+            forenames=tuple(names[:-1]),
+            surname=names[-1]
+        )
+
     def __repr__(self):
         fnames = ', '.join(self.forenames)
         return f'"{self.surname}; {fnames}"'
@@ -156,11 +185,6 @@ def extract_arxivid(ref_str):
             ref_str = ref_str[:b] + " " +ref_str[e:]
     return ref_str, arxiv_id
 
-with Path('/mnt/efs/pwc/data/ref-names.json').open() as f:
-    preloaded_surnames_db = json.load(f)
-
-def is_surname(word):
-    return word in preloaded_surnames_db
 
 def is_publication_venue(word):
     return word.lower() in conferences
@@ -203,7 +227,7 @@ def post_process_title(title, is_surname, is_publication_venue):
 
         title = max(scores)[1]
 
-    title = strip_conferences(title)
+    # title = strip_conferences(title)
     title = title.rstrip(' .')
     return title
 
@@ -221,6 +245,7 @@ class PReference:
     orig_ref: str = field(repr=False, default_factory=lambda:None)
 
     arxiv_id: str = None
+    pwc_slug: str = None
 
     def unique_id(self):
         if not self.title:
@@ -257,12 +282,12 @@ class PReference:
         )
 
     @classmethod
-    def parse_ref_str(cls, ref_str, orig_key=None, is_surname=is_surname, is_publication_venue=is_publication_venue):
+    def parse_ref_str(cls, ref_str, grobid_client, orig_key=None, is_surname=None, is_publication_venue=is_publication_venue):
         try:
             clean_ref_str = strip_latex_artefacts(ref_str)
             clean_ref_str = strip_anchor(clean_ref_str)
             clean_ref_str, arxiv_id = extract_arxivid(clean_ref_str)
-            d = grobidclient.parse_ref_str_to_tei_dict(clean_ref_str)
+            d = grobid_client.parse_ref_str_to_tei_dict(clean_ref_str)
             ref = cls.from_tei_dict(d, orig_ref=ref_str, arxiv_id=arxiv_id)
             ref.orig_key = orig_key
 
@@ -278,17 +303,23 @@ def until_first_nonalphanumeric(string):
     return nonalphanumeric_re.split(string)[0]
 
 class ReferenceStore:
-    def __init__(self):
+    def __init__(self, grobid_client, surnames_path='/mnt/efs/pwc/data/ref-names.json'):
+        self.grobid_client = grobid_client
         self.refdb = {}
         self.tosync = []
         self.surnames_db = defaultdict(lambda: 0)
+        self._load_surnames(surnames_path)
+
+    def _load_surnames(self, path):
+        with Path(path).open() as f:
+            self.preloaded_surnames_db = json.load(f)
 
     def is_surname(self, word):
-        return is_surname(word) or self.surnames_db[word] > 5
+        return word in self.preloaded_surnames_db  #or self.surnames_db[word] > 5
 
     def get_reference(self, key):
         if key not in self.refdb:
-            self.refdb[key] = Reference2.mget(key)[0]
+            self.refdb[key] = Reference2.mget([key])[0]
         return self.refdb[key]
 
     def add_or_merge(self, ref):
@@ -305,7 +336,7 @@ class ReferenceStore:
         return self.refdb[curr_uid].stable_id
 
     def add_reference_string(self, ref_str):
-        ref = PReference.parse_ref_str(ref_str, self.is_surname)
+        ref = PReference.parse_ref_str(ref_str, self.grobid_client, is_surname=self.is_surname)
         if ref is None or ref.unique_id() is None:
             for r in Reference2.search().query('match', orig_refs=ref_str)[:10]:
                 if r.stable_id in normalize_title(ref_str):
@@ -334,3 +365,32 @@ class ReferenceStore:
                 p.save()
             except ConflictError:
                 pass
+
+
+def get_refstrings(p):
+    paper = p.text if hasattr(p, 'text') else p
+    if not hasattr(paper, 'fragments'):
+        return
+    fragments = paper.fragments
+    ref_sec_started = False
+    for f in reversed(fragments):
+        if f.header.startswith('xxanchor-bib'):
+            ref_sec_started = True
+            yield f.text
+        elif ref_sec_started:
+            # todo: check if a paper can have multiple bibliography sections
+            # (f.e., one in the main paper and one in the appendix)
+            break  # the refsection is only at the end of paper
+
+
+
+_ref_re = re.compile(r'^\s*(?:xxanchor-bib\s)?xxanchor-([a-zA-Z0-9-]+)\s(.+)$')
+def extract_refs(p):
+    for ref in get_refstrings(p):
+        m = _ref_re.match(ref)
+        if m:
+            ref_id, ref_str = m.groups()
+            yield {
+                "ref_id": ref_id,
+                "ref_str": ref_str.strip(r'\s')
+            }

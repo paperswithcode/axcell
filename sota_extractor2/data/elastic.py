@@ -108,7 +108,11 @@ class Fragment(Document):
     )
     outer_headers = Text(analyzer=html_strip, )
 
+    class Meta:
+        doc_type = '_doc'
+
     class Index:
+        doc_type = '_doc'
         name = 'paper-fragments'
 
     @classmethod
@@ -138,7 +142,11 @@ class Paper(Document):
         analyzer=html_strip
     )
 
+    class Meta:
+        doc_type = '_doc'
+
     class Index:
+        doc_type = '_doc'
         name = 'papers'
 
     def to_json(self):
@@ -290,26 +298,42 @@ class Reference(Document):
     urls = Keyword()
     is_ml = Boolean()
 
+    class Meta:
+        doc_type = '_doc'
+
     class Index:
+        doc_type = '_doc'
         name = 'references'
 
     def __repr__(self):
         return f"{self.title} / {self.authors}"
 
+
 ID_LIMIT=480
+
+
+class Author2(InnerDoc):
+    forenames = Text(fields={'keyword': Keyword()})
+    surname = Text(fields={'keyword': Keyword()})
+
 
 class Reference2(Document):
     title = Text()
-    authors = Text()
+    authors = Object(Author2)
 
     idno = Keyword()
     date = Date()
     ptr = Keyword()
 
     arxiv_id = Keyword()
+    pwc_slug = Keyword()
     orig_refs = Text()
 
+    class Meta:
+        doc_type = '_doc'
+
     class Index:
+        doc_type = '_doc'
         name = 'references2'
 
     def add_ref(self, ref):
@@ -318,6 +342,8 @@ class Reference2(Document):
         # self.refs.append(asdict(ref))
         if ref.arxiv_id:
             self.arxiv_id = ref.arxiv_id
+        if ref.pwc_slug:
+            self.pwc_slug = ref.pwc_slug
         if ref.idno:
             if hasattr(ref.idno, 'values'):
                 self.idno = ([None]+[v for v in ref.idno.values() if v.startswith("http")]).pop()
@@ -325,7 +351,6 @@ class Reference2(Document):
                 self.idno = ref.idno
         # if ref.date:
         #     self.date = ref.date
-        self.date = None
         if ref.ptr:
             self.ptr = ref.ptr
         self.orig_refs = self.orig_refs if self.orig_refs else []
@@ -414,3 +439,19 @@ def display_fragment(f, cell_type="", display=True):
     if display:
         display_html(html)
     return html
+
+
+def query_for_evidences(paper_id, values, topk=5, fragment_size=50):
+    evidence_query = Fragment.search().highlight(
+        'text', pre_tags="<b>", post_tags="</b>", fragment_size=fragment_size)
+
+    query = {
+        "query": ' '.join(values)
+    }
+
+    fragments = list(evidence_query
+                     .filter('term', paper_id=paper_id)
+                     .query('match', text=query)[:topk]
+                     )
+
+    return '\n'.join([' '.join(f.meta['highlight']['text']) for f in fragments])

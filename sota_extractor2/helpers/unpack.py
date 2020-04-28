@@ -12,6 +12,7 @@ class Unpack:
 
     def __init__(self):
         self.magic = Magic(mime=True, uncompress=True)
+        self.magic_formatted = Magic(mime=False, uncompress=True)
 
     def __call__(self, source, dest):
         pipeline_logger(f"{Unpack.step}::call", source=source, dest=dest)
@@ -25,7 +26,12 @@ class Unpack:
                 tar.extractall(dest)
         elif mime == 'text/x-tex':
             dest.mkdir(parents=True, exist_ok=True)
-            with gzip.open(source, "rb") as src, open(dest / "main.tex") as dst:
+            with gzip.open(source, "rb") as src, open(dest / "main.tex", "wb") as dst:
                 copyfileobj(src, dst)
+        elif mime == 'application/pdf':
+            raise UnpackError(f"No LaTeX source code available for this paper, PDF only")
+        elif mime == 'text/plain' and 'withdrawn' in self.magic_formatted.from_file(str(source)):
+            raise UnpackError(f"The paper has been withdrawn and there is"
+                              f" no LaTeX source code available")
         else:
             raise UnpackError(f"Cannot unpack file of type {mime}")

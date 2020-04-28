@@ -1,5 +1,5 @@
 import re
-from decimal import Decimal
+from decimal import Decimal, localcontext, InvalidOperation
 from dataclasses import dataclass
 import numpy as np
 import pandas as pd
@@ -57,6 +57,46 @@ class Proposal:
 
     def __str__(self):
         return f"{self.model_name}: {self.raw_value} on {self.dataset}"
+
+
+class MetricValue:
+    value: Decimal
+    unit: str = None
+
+    def __init__(self, value, unit):
+        self.value = value
+        self.unit = unit
+
+    def to_unitless(self):
+        return self.value
+
+    def to_absolute(self):
+        return self.value / Decimal(100) if self.unit is '%' else self.value
+
+    # unit = None means that no unit was specified, so we have to guess the unit.
+    # if there's a value "21" in a table's cell, then we guess if it's 21 or 0.21 (i.e., 21%)
+    # based on the target metric properties.
+    def to_percentage(self):
+        if self.unit is None and 0 < self.value < 1:
+            return self.value * 100
+        return self.value
+
+    def complement(self):
+        if self.unit is None:
+            if 1 < self.value < 100:
+                value = 100 - self.value
+            else:
+                value = 1 - self.value
+        else:
+            value = 100 - self.value
+        return MetricValue(value, self.unit)
+
+    def __repr__(self):
+        return f"MetricValue({self.value}, {repr(self.unit)})"
+
+    def __str__(self):
+        return str(self.value)
+
 
 def mkquery_ngrams(query):
     return {
@@ -164,17 +204,44 @@ def handle_pm(value):
     for match in float_pm_re.findall(value):
         if not match[0]:
             try:
-                yield Decimal(whitespace_re.sub("", match[1])) / (100 if match[-1] else 1)
+                percent = bool(match[-1])
+                value = Decimal(whitespace_re.sub("", match[1])) / (100 if percent else 1)
+                yield MetricValue(value, "%" if percent else None)
             except:
                 pass
             # %%
 
 
+def convert_metric(raw_value, rng, complementary):
+    format = "{x}"
+
+    percentage = '%' in raw_value
+    if percentage:
+        format += '%'
+
+    with localcontext() as ctx:
+        ctx.traps[InvalidOperation] = 0
+        parsed = extract_value(raw_value, format)
+        parsed = MetricValue(parsed, '%' if percentage else None)
+
+        if complementary:
+            parsed = parsed.complement()
+        if rng == '0-1':
+            parsed = parsed.to_percentage() / 100
+        elif rng == '1-100':
+            parsed = parsed.to_percentage()
+        elif rng == 'abs':
+            parsed = parsed.to_absolute()
+        else:
+            parsed = parsed.to_unitless()
+    return parsed
+
 proposal_columns = ['dataset', 'metric', 'task', 'format', 'raw_value', 'model', 'model_type', 'cell_ext_id',
                     'confidence', 'parsed', 'struct_model_type', 'struct_dataset']
 
 
-def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonomy_linking, datasets):
+def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonomy_linking,
+                                 paper_context, abstract_context, table_context, topk=1):
     # %%
     # Proposal generation
     def consume_cells(matrix):
@@ -191,8 +258,7 @@ def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonom
             if type in structure[nr, c]:
                 yield Value(structure[nr, c], matrix[nr, c])
 
-
-    number_re = re.compile(r'^[± Ee /()^0-9.%±_-]{2,}$')
+    number_re = re.compile(r'(^[± Ee/()^0-9.%,_+-]{2,}$)|(^\s*[0-9]\s*$)')
 
     proposals = [Proposal(
         cell=Cell(cell_ext_id=f"{table_ext_id}/{r}.{c}",
@@ -217,59 +283,64 @@ def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonom
 
     def linked_proposals(proposals):
         for prop in proposals:
-            df = taxonomy_linking(prop.dataset, datasets, desc, debug_info=prop)
-            assert len(df) == 1
-
-            metric = df['metric'][0]
-
             # heuristyic to handle accuracy vs error
-            first_num = (list(handle_pm(prop.raw_value)) + [0])[0]
             format = "{x}"
-            # if first_num > 1:
-            #     first_num /= 100
-            #     format = "{x/100}"
-            if first_num < 1 and '%' not in prop.raw_value:
-                first_num *= 100
-                format = "{100*x}"
-            if '%' in prop.raw_value:
+
+            percentage = '%' in prop.raw_value
+            if percentage:
                 format += '%'
 
-            # if ("error" in metric or "Error" in metric) and (first_num > 0.5):
-            if (metric.strip().lower() == "error") and (first_num > 0.5):
-                metric = "Accuracy"
+            df = taxonomy_linking(prop.dataset, paper_context, abstract_context, table_context,
+                                  desc, topk=topk, debug_info=prop)
+            for _, row in df.iterrows():
+                raw_value = prop.raw_value
+                task = row['task']
+                dataset = row['dataset']
+                metric = row['metric']
 
-            linked = {
-                'dataset': df['dataset'][0],
-                'metric': metric,
-                'task': df['task'][0],
-                'format': format,
-                'raw_value': prop.raw_value,
-                'model': prop.model_name,
-                'model_type': prop.model_type,
-                'cell_ext_id': prop.cell.cell_ext_id,
-                'confidence': df['confidence'][0],
-                'struct_model_type': prop.model_type,
-                'struct_dataset': prop.dataset
-            }
-            yield linked
+                complementary = False
+                if metric != row['true_metric']:
+                    metric = row['true_metric']
+                    complementary = True
+
+                # todo: pass taxonomy directly to proposals generation
+                ranges = taxonomy_linking.taxonomy.metrics_range
+                key = (task, dataset, metric)
+                rng = ranges.get(key, '')
+                if not rng: rng = ranges.get(metric, '')
+
+                parsed = float(convert_metric(raw_value, rng, complementary))
+
+                linked = {
+                    'dataset': dataset,
+                    'metric': metric,
+                    'task': task,
+                    'format': format,
+                    'raw_value': raw_value,
+                    'model': prop.model_name,
+                    'model_type': prop.model_type,
+                    'cell_ext_id': prop.cell.cell_ext_id,
+                    'confidence': row['confidence'],
+                    'struct_model_type': prop.model_type,
+                    'struct_dataset': prop.dataset,
+                    'parsed': parsed
+                }
+                yield linked
 
     # specify columns in case there's no proposal
 
     proposals = pd.DataFrame.from_records(list(linked_proposals(proposals)), columns=proposal_columns)
-
-    if len(proposals):
-        proposals["parsed"]=proposals[["raw_value", "format"]].apply(
-            lambda row: float(extract_value(row.raw_value, row.format)), axis=1)
     return proposals
 
 
-def linked_proposals(paper_ext_id, paper, annotated_tables, taxonomy_linking=MatchSearch(),
-                     dataset_extractor=None):
+def linked_proposals(paper_ext_id, paper, annotated_tables, taxonomy_linking=None,
+                     dataset_extractor=None, topk=1):
     #                     dataset_extractor=DatasetExtractor()):
     proposals = []
-    datasets = dataset_extractor.from_paper(paper)
+    paper_context, abstract_context = dataset_extractor.from_paper(paper)
+    table_contexts = dataset_extractor.get_table_contexts(paper, annotated_tables)
     #print(f"Extracted datasets: {datasets}")
-    for idx, table in enumerate(annotated_tables):
+    for idx, (table, table_context) in enumerate(zip(annotated_tables, table_contexts)):
         matrix = np.array(table.matrix)
         structure = np.array(table.matrix_tags)
         tags = 'sota'
@@ -277,7 +348,13 @@ def linked_proposals(paper_ext_id, paper, annotated_tables, taxonomy_linking=Mat
         table_ext_id = f"{paper_ext_id}/{table.name}"
 
         if 'sota' in tags and 'no_sota_records' not in tags: # only parse tables that are marked as sota
-            proposals.append(generate_proposals_for_table(table_ext_id, matrix, structure, desc, taxonomy_linking, datasets))
+            proposals.append(
+                generate_proposals_for_table(
+                    table_ext_id, matrix, structure, desc, taxonomy_linking,
+                    paper_context, abstract_context, table_context,
+                    topk=topk
+                )
+            )
     if len(proposals):
         return pd.concat(proposals)
     return pd.DataFrame(columns=proposal_columns)

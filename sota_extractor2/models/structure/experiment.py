@@ -297,6 +297,14 @@ class Experiment:
             suffix = '_full' if full_cm and f'{prefix}_cm_full' in self.results else ''
             self._plot_confusion_matrix(np.array(self.results[f'{prefix}_cm{suffix}']), normalize=normalize)
 
+    def get_cm_labels(self, cm):
+        if len(cm) == 6:
+            target_names = ["OTHER", "DATASET", "MODEL (paper)", "MODEL (comp.)", "METRIC", "EMPTY"]
+        else:
+            target_names = ["OTHER", "params", "task", "DATASET", "subdataset", "MODEL (paper)", "model (best)",
+                            "model (ens.)", "MODEL (comp.)", "METRIC", "EMPTY"]
+        return target_names
+
     def _plot_confusion_matrix(self, cm, normalize, fmt=None):
         if normalize:
             s = cm.sum(axis=1)[:, None]
@@ -305,11 +313,7 @@ class Experiment:
         if fmt is None:
             fmt = "0.2f" if normalize else "d"
 
-        if len(cm) == 6:
-            target_names = ["OTHER", "DATASET", "MODEL (paper)", "MODEL (comp.)", "METRIC", "EMPTY"]
-        else:
-            target_names = ["OTHER", "params", "task", "DATASET", "subdataset", "MODEL (paper)", "model (best)",
-                            "model (ens.)", "MODEL (comp.)", "METRIC", "EMPTY"]
+        target_names = self.get_cm_labels(cm)
         df_cm = pd.DataFrame(cm, index=[i for i in target_names],
                              columns=[i for i in target_names])
         plt.figure(figsize=(10, 10))

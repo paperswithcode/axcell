@@ -17,31 +17,7 @@ connections.create_connection(hosts=['10.0.1.145'], timeout=20)
 pc = PaperCollection.from_pickle("/mnt/efs/pwc/data/pc-small-noann.pkl")
 
 
-def get_refstrings(p):
-    paper = p.text if hasattr(p, 'text') else p
-    if not hasattr(paper, 'fragments'):
-        return
-    fragments = paper.fragments
-    ref_sec_started = False
-    for f in reversed(fragments):
-        if f.header.startswith('xxanchor-bib'):
-            ref_sec_started = True
-            yield f.text
-        elif ref_sec_started:
-            break  # the refsection is only at the end of paper
 
-
-_ref_re = regex.compile(r'^\s*(?:xxanchor-bib\s)?xxanchor-([a-zA-Z0-9-]+)\s(.+)$')
-def extract_refs(p):
-    for ref in get_refstrings(p):
-        m = _ref_re.match(ref)
-        if m:
-            ref_id, ref_str = m.groups()
-            yield {
-                "paper_arxiv_id": p.arxiv_no_version,
-                "ref_id": ref_id,
-                "ref_str": ref_str.strip(r'\s')
-            }
 
 class PaperCollectionReferenceParser:
     def __init__(self):
@@ -52,13 +28,13 @@ class PaperCollectionReferenceParser:
     def parse_refs(self, p):
         for d in extract_refs(p):
             if not d["ref_id"].startswith("pwc-"):
-                key = d["paper_arxiv_id"] + d["ref_id"]
+                key = p.arxiv_no_version + d["ref_id"]
                 if key not in self.cache:
                     new_id = self.refsdb.add_reference_string(d['ref_str'])
                     if new_id is not None:
                         new_id = "pwc-" + new_id
                     self.cache[key] = new_id
-                if self.cache[key] and len(self.cache[key]) > 500:  # fix to self.cache to make the id compatible with elastic
+                if self.cache[key] and len(self.cache[key]) > ID_LIMIT:  # fix to self.cache to make the id compatible with elastic
                     self.cache[key] = self.cache[key][:ID_LIMIT]
                 yield d["ref_id"], self.cache[key]
         self.refsdb.sync()

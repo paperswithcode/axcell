@@ -276,6 +276,16 @@ def save_tables(data, outdir):
         json.dump(metadata, f)
 
 
+def load_tables(path):
+    path = Path(path)
+    with open(path / "metadata.json", "r") as f:
+        metadata = json.load(f)
+
+    return [Table.from_file(
+        path,
+        table_metadata) for table_metadata in metadata]
+
+
 def set_ids_by_labels(soup):
     captions = soup.select(".ltx_caption")
     for caption in captions:

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 OUTNAME="$1"
 echo $OUTNAME
-RO_SOURCE_DIR="/files/ro-source"
+RO_SOURCE_DIR="${2:-/files/ro-source}"
 SOURCE_DIR="/files/source"
-OUTPUT_DIR="/files/htmls"
+OUTPUT_DIR="${3:-/files/htmls}"
 
+mkdir -p /files
 cp -r "$RO_SOURCE_DIR" "$SOURCE_DIR"
 
 # turn tikzpciture instances into comments
@@ -23,6 +24,9 @@ do
 done
 
 MAINTEX=$(python3 /files/guess_main.py "$SOURCE_DIR")
+[ ! -f "$MAINTEX" ] && exit 1
+
 timeout -s KILL 300 engrafo "$MAINTEX" /files/output
 
+[ ! -f /files/output/index.html ] && exit 117
 cp /files/output/index.html "$OUTPUT_DIR/$OUTNAME"

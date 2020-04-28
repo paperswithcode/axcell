@@ -24,7 +24,7 @@ num_re = re.compile(r"^\d+$")
 
 def extract_references(s):
     parts = reference_re.split(s)
-    refs = parts[1::3]
+    refs = [r.replace('-', '') for r in parts[1::3]]
     text = []
     for i, x in enumerate(parts):
         if i % 3 == 0:
@@ -61,6 +61,7 @@ def raw_value_to_html(s):
 def str2cell(s):
     value, refs = extract_references(s)
     value = remove_text_styles(value)
+    value = unidecode(value)
     return Cell(value=value, raw_value=s, refs=refs)
 
 def read_str_csv(filename):

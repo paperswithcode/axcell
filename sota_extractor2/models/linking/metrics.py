@@ -14,12 +14,13 @@ class CM:
     tn: float = 0
 
 class Metrics:
-    def __init__(self, df, experiment_name="unk"):
+    def __init__(self, df, experiment_name="unk", topk_metrics=False):
         # TODO fix this, it mask the fact that our model may return more values than it should for "model
         #self.df = df[~df["model_type_gold"].str.contains('not-present') | df["model_type_pred"].str.contains('model-best')]
         self.df = df[df["model_type_gold"].str.contains('model-best') | df["model_type_pred"].str.contains('model-best')]
         self.experiment_name = experiment_name
         self.metric_type = 'best'
+        self.topk_metrics = topk_metrics
 
     def matching(self, *col_names):
         return np.all([self.df[f"{name}_pred"] == self.df[f"{name}_gold"] for name in col_names], axis=0)
@@ -41,6 +42,11 @@ class Metrics:
         pred_positive = relevant_pred  # & present_pred
         gold_positive = relevant_gold
         equal = self.matching(*col_names)
+
+        if self.topk_metrics:
+            equal = pd.Series(equal, index=pred_positive.index).groupby('cell_ext_id').max()
+            pred_positive = pred_positive.groupby('cell_ext_id').head(1)
+            gold_positive = gold_positive.groupby('cell_ext_id').head(1)
 
         tp = (equal & pred_positive & gold_positive).sum()
         tn = (equal & ~pred_positive & ~gold_positive).sum()

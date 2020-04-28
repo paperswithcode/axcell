@@ -168,11 +168,16 @@ class Explainer:
         records.index.rename("cell_ext_id", inplace=True)
         return records
 
-    def linking_metrics(self, experiment_name="unk"):
+    def linking_metrics(self, experiment_name="unk", topk_metrics=False, filtered=True, confidence=0.0):
         paper_ids = list(self.le.proposals.keys())
 
         proposals = pd.concat(self.le.proposals.values())
-        proposals = proposals[~proposals.index.isin(self.fe.reason.index)]
+
+        # if not topk_metrics:
+        if filtered:
+            proposals = proposals[~proposals.index.isin(self.fe.reason.index)]
+        if confidence:
+            proposals = proposals[proposals.confidence > confidence]
 
         papers = {paper_id: self.paper_collection.get_by_id(paper_id) for paper_id in paper_ids}
         missing = [paper_id for paper_id, paper in papers.items() if paper is None]
@@ -202,8 +207,9 @@ class Explainer:
         if "experiment_name" in df.columns:
             del df["experiment_name"]
 
-        metrics = Metrics(df, experiment_name=experiment_name)
+        metrics = Metrics(df, experiment_name=experiment_name, topk_metrics=topk_metrics)
         return metrics
+
 
     def optimize_filters(self, metrics_info):
         results = optimize_filters(self, metrics_info)

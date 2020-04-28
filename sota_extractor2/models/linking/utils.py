@@ -39,8 +39,8 @@ def normalize_dataset_ws(name):
 
 def normalize_dataset(name):
     name = remove_references(name)
-    name = hyphens_re.sub("", name)
     name = year_2k_re.sub(r"\1", name)
+    name = hyphens_re.sub("", name)
     name = ws_re.sub(" ", name)
     return unidecode(name.strip().lower())
 
