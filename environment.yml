@@ -17,3 +17,6 @@ dependencies:
 - ipython=7.5.0
 - joblib=0.13.2
 - python-magic=0.4.15
+- docker-py=4.1.0
+- python-magic=0.4.15
+- html5lib=1.0.1

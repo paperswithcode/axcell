@@ -13,7 +13,7 @@ directory = os.path.dirname(os.path.abspath(__file__))
 #     text = read_file.read()
 # pattern = re.compile(r"^__version__ = ['\"]([^'\"]*)['\"]", re.MULTILINE)
 # version = pattern.search(text).group(1)
-version="2.0-alpha"
+version="1.0-alpha"
 
 # # Extract long_description
 # path = os.path.join(directory, 'README.md')
@@ -23,11 +23,12 @@ long_description = ""
 setuptools.setup(
     name='axcell',
     version=version,
-    url='https://...',
-    description='System for extracting data from arxiv papers',
-    long_description_content_type='text/markdown',
-    long_description=long_description,
-    license='???',
+    url='https://github.com/paperswithcode/axcell',
+    description='System for extracting machine learning results from arxiv papers',
+    author='Papers with Code',
+#    long_description_content_type='text/markdown',
+#    long_description=long_description,
+    license='Apache License 2.0',
     packages=setuptools.find_packages(),
     include_package_data=True,
 
@@ -41,9 +42,8 @@ setuptools.setup(
     ],
 
     project_urls={  # Optional
-        'Homepage': 'https://...',
-        'Source': 'https://...',
-        'Bug Reports': 'https://...',
-        'Citation': 'https://...',
+        'Homepage': 'https://github.com/paperswithcode/axcell',
+        'Source': 'https://github.com/paperswithcode/axcell',
+        'Citation': 'https://arxiv.org/abs/2004.14356',
     },
 )

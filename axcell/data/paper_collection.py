@@ -11,7 +11,7 @@ from collections import UserList
 from ..helpers.jupyter import display_table
 import string
 import random
-from extract_tables import extract_tables
+from axcell.data.extract_tables import extract_tables
 
 
 class Paper:
