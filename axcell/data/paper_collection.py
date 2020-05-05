@@ -75,15 +75,18 @@ def _load_tables(path, annotations, jobs, migrate):
     return {f.parent.name: tbls for f, tbls in zip(files, tables)}
 
 
+def _gql_dump_to_annotations(dump):
+    annotations = {remove_arxiv_version(a.arxiv_id): a for a in dump}
+    annotations.update({a.arxiv_id: a for a in dump})
+    return annotations
+
 def _load_annotated_papers(data_or_path):
-    if isinstance(data_or_path, dict):
+    if isinstance(data_or_path, dict) or isinstance(data_or_path, list):
         compressed = False
     else:
         compressed = data_or_path.suffix == ".gz"
     dump = load_gql_dump(data_or_path, compressed=compressed)["allPapers"]
-    annotations = {remove_arxiv_version(a.arxiv_id): a for a in dump}
-    annotations.update({a.arxiv_id: a for a in dump})
-    return annotations
+    return _gql_dump_to_annotations(dump)
 
 
 class PaperCollection(UserList):
@@ -91,7 +94,13 @@ class PaperCollection(UserList):
         super().__init__(data)
 
     @classmethod
-    def from_files(cls, path, annotations_path=None, load_texts=True, load_tables=True, load_annotations=True, jobs=-1, migrate=False):
+    def from_files(cls, path, annotations=None, load_texts=True, load_tables=True, jobs=-1):
+        return cls._from_files(path, annotations=annotations, annotations_path=None,
+                               load_texts=load_texts, load_tables=load_tables, load_annotations=False,
+                               jobs=jobs)
+
+    @classmethod
+    def _from_files(cls, path, annotations=None, annotations_path=None, load_texts=True, load_tables=True, load_annotations=True, jobs=-1, migrate=False):
         path = Path(path)
         if annotations_path is None:
             annotations_path = path / "structure-annotations.json"
@@ -102,7 +111,10 @@ class PaperCollection(UserList):
         else:
             texts = {}
 
-        annotations = {}
+        if annotations is None:
+            annotations = {}
+        else:
+            annotations = _load_annotated_papers(annotations)
         if load_tables:
             if load_annotations:
                 annotations = _load_annotated_papers(annotations_path)
