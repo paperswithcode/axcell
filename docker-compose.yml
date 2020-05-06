@@ -1,0 +1,18 @@
+version: '3'
+services:
+  # search engine
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch-oss:6.7.1
+    entrypoint:
+      - elasticsearch
+      - -Ehttp.port=9200
+      - -Etransport.host=localhost
+      - -Ehttp.host=0.0.0.0
+      - -Ebootstrap.system_call_filter=false
+      - -Ehttp.cors.enabled=true
+      - -Ehttp.cors.allow-origin=*
+      - -Ehttp.cors.allow-headers=*
+      - -Ehttp.cors.allow-credentials=true
+    user: elasticsearch
+    ports:
+      - '127.0.0.1:9200:9200'

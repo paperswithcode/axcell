@@ -348,7 +348,7 @@ def remove_footnotes(soup):
 
 
 def extract_tables(html):
-    soup = BeautifulSoup(html, "lxml", from_encoding="utf-8")
+    soup = BeautifulSoup(html, "lxml")
     set_ids_by_labels(soup)
     fix_span_tables(soup)
     fix_th(soup)

@@ -1,0 +1,2 @@
+include axcell/scripts/*
+include axcell/scripts/patches/*

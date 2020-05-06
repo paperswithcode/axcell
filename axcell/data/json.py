@@ -71,13 +71,62 @@ class NodeWrap(dict):
         vals = pprint.pformat({to_snake_case(k): cut(str(self[k]))  for k in self.keys()})
         return f"NodeWrap({vals})"
 
+
+def _annotations_to_gql(annotations):
+    nodes = []
+    for a in annotations:
+        tables = []
+        for t in a['tables']:
+            tags = []
+            if t['leaderboard']:
+                tags.append('leaderboard')
+            if t['ablation']:
+                tags.append('ablation')
+            if not tags:
+                tags = ['irrelevant']
+
+            records = {}
+            for r in t['records']:
+                d = dict(r)
+                del d['row']
+                del d['column']
+                records[f'{r["row"]}.{r["column"]}'] = d
+            table = {
+                'node': {
+                    'name': f'table_{t["index"] + 1:02}.csv',
+                    'datasetText': t['dataset_text'],
+                    'notes': '',
+                    'goldTags': ' '.join(tags),
+                    'matrixGoldTags': t['segmentation'],
+                    'cellsSotaRecords': json.dumps(records),
+                    'parser': 'latexml'
+                }
+            }
+            tables.append(table)
+        node = {
+            'arxivId': a['arxiv_id'],
+            'goldTags': a['fold'],
+            'tableSet': {'edges': tables}
+        }
+        nodes.append({'node': node})
+    return {
+        'data': {
+            'allPapers': {
+                'edges': nodes
+            }
+        }
+    }
+
+
 def load_gql_dump(data_or_file, compressed=True):
-    if isinstance(data_or_file, dict):
+    if isinstance(data_or_file, dict) or isinstance(data_or_file, list):
         papers_data = data_or_file
     else:
         open_fn = gzip.open if compressed else open
         with open_fn(data_or_file, "rt") as f:
-                papers_data = json.load(f)
+            papers_data = json.load(f)
+    if "data" not in papers_data:
+        papers_data = _annotations_to_gql(papers_data)
     data = papers_data["data"]
     return {k:wrap_dict(v) for k,v in data.items()}
 

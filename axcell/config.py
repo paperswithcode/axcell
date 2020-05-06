@@ -15,7 +15,7 @@ data = Path("/mnt/efs/pwc/data")
 goldtags_dump = data / "dumps" / "goldtags-2019.10.15_2227.json.gz"
 
 
-elastic = dict(hosts=['localhost'], timeout=20)
+elastic = dict(hosts=['127.0.0.1'], timeout=20)
 grobid = dict(host='grobid')
 
 arxiv = data/'arxiv'
