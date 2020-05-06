@@ -47,4 +47,4 @@ def table_to_html(table, structure=None, layout=None, predictions=None, tooltips
 
 def display_table(table, structure=None, layout=None):
     html = table_to_html(table, structure, layout)
-    display_html("\n".join(html))
+    display_html(html)

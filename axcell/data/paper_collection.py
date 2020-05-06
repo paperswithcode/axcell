@@ -143,8 +143,9 @@ class PaperCollection(UserList):
     def cells_gold_tags_legend(cls):
         tags = [
             ("Tag", "description"),
-            ("model-best", "model that has results that author most likely would like to have exposed"),
-            ("model-paper", "an example of a generic model, (like LSTM)"),
+            ("model-best", "the best performing model introduced in the paper"),
+            ("model-paper", "model introduced in the paper"),
+            ("model-ensemble", "ensemble of models introduced in the paper"),
             ("model-competing", "model from another paper used for comparison"),
             ("dataset-task", "Task"),
             ("dataset", "Dataset"),

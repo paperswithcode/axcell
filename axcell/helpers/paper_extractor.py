@@ -1,3 +1,5 @@
+#  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+
 from pathlib import Path
 from axcell.helpers import LatexConverter, Unpack
 from axcell.errors import UnpackError, LatexConversionError
