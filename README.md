@@ -23,13 +23,15 @@ We publish the following datasets:
 * [PWCLeaderboards](https://github.com/paperswithcode/axcell/releases/download/v1.0/pwc-leaderboards.json.xz)
 
 See [datasets](notebooks/datasets.ipynb) notebook for an example of how to load the datasets provided below. The [extraction](notebooks/extraction.ipynb) notebook shows how to use `axcell` to extract text and tables from papers.
-## Training
-
-
 
 ## Evaluation
 
 See the [evaluation](notebooks/evaluation.ipynb) notebook for the full example on how to evaluate AxCell on the PWCLeaderboards dataset. 
+
+## Training
+
+* [pre-training language model](notebooks/training/lm.ipynb) on the ArxivPapers dataset 
+* [table type classifier](notebooks/training/table-type-classifier.ipynb) and [table segmentation](notebooks/training/table-segmentation.ipynb) on the SegmentedResults dataset 
 
 ## Pre-trained Models
 
