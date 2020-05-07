@@ -13,7 +13,7 @@ directory = os.path.dirname(os.path.abspath(__file__))
 #     text = read_file.read()
 # pattern = re.compile(r"^__version__ = ['\"]([^'\"]*)['\"]", re.MULTILINE)
 # version = pattern.search(text).group(1)
-version="1.0-alpha"
+version="1.0.0"
 
 # # Extract long_description
 # path = os.path.join(directory, 'README.md')

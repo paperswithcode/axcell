@@ -1,4 +1,4 @@
-name: xtables
+name: axcell
 channels:
 - conda-forge
 - defaults
@@ -7,9 +7,9 @@ dependencies:
 - html5lib=1.0.1
 - beautifulsoup4=4.7.1
 - lxml=4.3.4
-- pandas=0.24.2
+- pandas=0.25.3
 - beautifulsoup4=4.7.1
-- numpy=1.15.4
+- numpy=1.18.1
 - python=3.7.1
 - pyahocorasick=1.4.0
 - Unidecode=1.0.23
@@ -19,5 +19,19 @@ dependencies:
 - python-magic=0.4.15
 - docker-py=4.1.0
 - python-magic=0.4.15
-- html5lib=1.0.1
 - seaborn
+- docker-compose=1.25.5
+- freetype=2.10.1
+- numba=0.48.0
+- pip:
+    - sentencepiece
+    - elasticsearch==6.3.1
+    - elasticsearch-dsl==6.3.1
+    - sklearn
+    - regex
+    - scispacy
+    - psutil==5.6.7
+    - "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-2.2.5/en_core_web_sm-2.2.5.tar.gz"
+    - "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.2.4/en_core_sci_sm-0.2.4.tar.gz"
+    - fastai==1.0.55
+    - .

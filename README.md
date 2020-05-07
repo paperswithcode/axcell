@@ -46,7 +46,7 @@ See the [evaluation](notebooks/evaluation.ipynb) notebook for the full example o
 You can download pretrained models here:
 
 - [axcell](https://github.com/paperswithcode/axcell/releases/download/v1.0/models.tar.xz) &mdash; an archive containing the taxonomy, abbreviations, table type classifier and table segmentation model. See the [results-extraction](notebooks/results-extraction.ipynb) notebook for an example of how to load and run the models 
-- [language model](https://github.com/paperswithcode/axcell/releases/download/v1.0/lm.xz) &mdash; [ULMFiT](https://arxiv.org/abs/1801.06146) language model pretrained on the ArxivPapers dataset
+- [language model](https://github.com/paperswithcode/axcell/releases/download/v1.0/lm.pth.xz) &mdash; [ULMFiT](https://arxiv.org/abs/1801.06146) language model pretrained on the ArxivPapers dataset
 
 ## Results
 
