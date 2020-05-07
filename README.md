@@ -6,16 +6,6 @@ This repository is the official implementation of [AxCell: Automatic Extraction 
 
 ![pipeline](https://user-images.githubusercontent.com/13535078/81287158-33e01000-905a-11ea-8573-d716373efbdd.png)
 
-```bibtex
-@inproceedings{axcell,
-    title={AxCell: Automatic Extraction of Results from Machine Learning Papers},
-    author={Marcin Kardas, Piotr Czapla, Pontus Stenetorp,
-            Sebastian Ruder, Sebastian Riedel, Ross Taylor, Robert Stojnic},
-    year={2020},
-    booktitle={2004.14356}
-}
-```
-
 ## Requirements
 
 To create a [conda](https://www.anaconda.com/distribution/) environment named `axcell` and install requirements run:
@@ -66,7 +56,7 @@ AxCell achieves the following performance:
 
 AxCell is released under the [Apache 2.0 license](LICENSE).
 
-### Citation
+## Citation
 The pipeline is described in the following paper:
 ```bibtex
 @inproceedings{axcell,
