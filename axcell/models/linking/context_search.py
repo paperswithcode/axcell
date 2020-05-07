@@ -10,13 +10,16 @@ from scipy.special import softmax
 import re
 import pandas as pd
 import numpy as np
+import json
 import ahocorasick
 from numba import njit, typed, types
+from pathlib import Path
 
 from axcell.pipeline_logger import pipeline_logger
 
 from axcell.models.linking import manual_dicts
 from collections import Counter
+
 
 def dummy_item(reason):
     return pd.DataFrame(dict(dataset=[reason], task=[reason], metric=[reason], evidence=[""], confidence=[0.0]))
@@ -28,7 +31,9 @@ class EvidenceFinder:
     end_letter_re = re.compile(r"\w\b")
     letter_re = re.compile(r"\w")
 
-    def __init__(self, taxonomy):
+    def __init__(self, taxonomy, abbreviations_path=None, use_manual_dicts=False):
+        self.abbreviations_path = abbreviations_path
+        self.use_manual_dicts = use_manual_dicts
         self._init_structs(taxonomy)
 
     @staticmethod
@@ -59,6 +64,14 @@ class EvidenceFinder:
         return trie
 
     @staticmethod
+    def get_auto_evidences(name, abbreviations, abbrvs_trie):
+        frags = EvidenceFinder.find_names(normalize_dataset_ws(name), abbrvs_trie)
+        evidences = []
+        for f in frags:
+            evidences.extend(abbreviations[f])
+        return list(set(evidences))
+
+    @staticmethod
     def find_names(text, names_trie):
         text = text.lower()
         profile = EvidenceFinder.letter_re.sub("i", text)
@@ -84,15 +97,30 @@ class EvidenceFinder:
 
     def init_evidence_dicts(self, taxonomy):
         self.tasks, self.datasets, self.metrics = EvidenceFinder.get_basic_dicts(taxonomy)
-        EvidenceFinder.merge_evidences(self.tasks, manual_dicts.tasks)
-        EvidenceFinder.merge_evidences(self.datasets, manual_dicts.datasets)
-        EvidenceFinder.merge_evidences(self.metrics, manual_dicts.metrics)
+
+        if self.use_manual_dicts:
+            EvidenceFinder.merge_evidences(self.tasks, manual_dicts.tasks)
+            EvidenceFinder.merge_evidences(self.datasets, manual_dicts.datasets)
+            EvidenceFinder.merge_evidences(self.metrics, manual_dicts.metrics)
+
+        if self.abbreviations_path is not None:
+            with Path(self.abbreviations_path).open('rt') as f:
+                abbreviations = json.load(f)
+            abbrvs_trie = EvidenceFinder.make_trie(list(abbreviations.keys()))
+
+            ds_auto = {x: EvidenceFinder.get_auto_evidences(x, abbreviations, abbrvs_trie) for x in taxonomy.datasets}
+            ms_auto = {x: EvidenceFinder.get_auto_evidences(x, abbreviations, abbrvs_trie) for x in taxonomy.metrics}
+
+            EvidenceFinder.merge_evidences(self.datasets, ds_auto)
+            EvidenceFinder.merge_evidences(self.metrics, ms_auto)
+
         self.datasets = {k: (v + ['test'] if 'val' not in k else v + ['validation', 'dev', 'development']) for k, v in
                     self.datasets.items()}
-        self.datasets.update({
-            'LibriSpeech dev-clean': ['libri speech dev clean', 'libri speech', 'dev', 'clean', 'dev clean', 'development'],
-            'LibriSpeech dev-other': ['libri speech dev other', 'libri speech', 'dev', 'other', 'dev other', 'development', 'noisy'],
-        })
+        if self.use_manual_dicts:
+            self.datasets.update({
+                'LibriSpeech dev-clean': ['libri speech dev clean', 'libri speech', 'dev', 'clean', 'dev clean', 'development'],
+                'LibriSpeech dev-other': ['libri speech dev other', 'libri speech', 'dev', 'other', 'dev other', 'development', 'noisy'],
+            })
 
     def _init_structs(self, taxonomy):
         self.init_evidence_dicts(taxonomy)
@@ -163,7 +191,10 @@ def _to_typed_list(iterable):
 
 
 class ContextSearch:
-    def __init__(self, taxonomy, evidence_finder, context_noise=(0.5, 0.1, 0.2, 0.2, 0.1), metric_noise=None, task_noise=None,
+    def __init__(self, taxonomy, evidence_finder,
+                 context_noise=(0.99, 1.0, 1.0, 0.25, 0.01),
+                 metric_noise=(0.99, 1.0, 1.0, 0.25, 0.01),
+                 task_noise=(0.1, 1.0, 1.0, 0.1, 0.1),
                  ds_pb=0.001, ms_pb=0.01, ts_pb=0.01, debug_gold_df=None):
         merged_p = \
         get_probs({k: Counter([normalize_cell(normalize_dataset(x)) for x in v]) for k, v in evidence_finder.datasets.items()})[1]
