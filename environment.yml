@@ -20,3 +20,4 @@ dependencies:
 - docker-py=4.1.0
 - python-magic=0.4.15
 - html5lib=1.0.1
+- seaborn
