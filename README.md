@@ -49,8 +49,8 @@ AxCell achieves the following performance:
 
 | Dataset | Macro F1 | Micro F1 |
 | ---------- |---------------- | -------------- |
-| [PWC Leaderboards](https://beta.paperswithcode.com/sota/scientific-results-extraction-on-pwc)     |     21.1         |      28.7       |
-| [NLP-TDMS](https://beta.paperswithcode.com/sota/scientific-results-extraction-on-nlp-tdms-exp)    |     19.7         |      25.8       |
+| [PWC Leaderboards](https://paperswithcode.com/sota/scientific-results-extraction-on-pwc)     |     21.1         |      28.7       |
+| [NLP-TDMS](https://paperswithcode.com/sota/scientific-results-extraction-on-nlp-tdms-exp)    |     19.7         |      25.8       |
 
 
 
