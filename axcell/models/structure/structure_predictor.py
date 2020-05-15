@@ -61,7 +61,8 @@ class TableStructurePredictor(ULMFiT_SP):
     def preprocess_df(self, raw_df):
         return self._e.transform_df(raw_df)
 
-    def keep_alphacells(self, df):
+    @staticmethod
+    def keep_alphacells(df):
         # which = df.cell_content.str.contains(with_letters_re)
         which = df.cell_content.str.contains(with_letters_re)
         return df[which], df[~which]
@@ -85,7 +86,8 @@ class TableStructurePredictor(ULMFiT_SP):
             return preds.cpu().numpy()
         return np.zeros((0, n_ulmfit_features if use_crf else n_classes))
 
-    def to_tables(self, df, transpose=False, n_ulmfit_features=n_ulmfit_features):
+    @staticmethod
+    def to_tables(df, transpose=False, n_ulmfit_features=n_ulmfit_features):
         X_tables = []
         Y_tables = []
         ids = []
@@ -130,19 +132,21 @@ class TableStructurePredictor(ULMFiT_SP):
         ###return (X_tables, Y_tables), C_tables, ids
         return X_tables, C_tables, ids
 
-    def merge_with_preds(self, df, preds):
+    @staticmethod
+    def merge_with_preds(df, preds):
         if not len(df):
             return []
         ext_id = df.ext_id.str.split("/", expand=True)
         return list(zip(ext_id[0] + "/" + ext_id[1], ext_id[2].astype(int), ext_id[3].astype(int),
                         preds, df.text, df.cell_content, df.cell_layout, df.cell_styles, df.cell_reference, df.label))
 
-    def merge_all_with_preds(self, df, df_num, preds, use_crf=True):
+    @staticmethod
+    def merge_all_with_preds(df, df_num, preds, use_crf=True):
         columns = ["table_id", "row", "col", "features", "text", "cell_content", "cell_layout",
                    "cell_styles", "cell_reference", "label"]
 
-        alpha = self.merge_with_preds(df, preds)
-        nums = self.merge_with_preds(df_num, np.zeros((len(df_num), n_ulmfit_features if use_crf else n_classes)))
+        alpha = TableStructurePredictor.merge_with_preds(df, preds)
+        nums = TableStructurePredictor.merge_with_preds(df_num, np.zeros((len(df_num), n_ulmfit_features if use_crf else n_classes)))
 
         df1 = pd.DataFrame(alpha, columns=columns)
         df2 = pd.DataFrame(nums, columns=columns)
@@ -150,7 +154,8 @@ class TableStructurePredictor(ULMFiT_SP):
         return df1.append(df2, ignore_index=True)
 
     # todo: fix numeric cells being labelled as meta / other
-    def format_predictions(self, tables_preds, test_ids):
+    @staticmethod
+    def format_predictions(tables_preds, test_ids):
         num2label = {v: k for k, v in label_map.items()}
         num2label[0] = "table-meta"
         num2label[Labels.PAPER_MODEL.value] = 'model-paper'
@@ -183,7 +188,8 @@ class TableStructurePredictor(ULMFiT_SP):
         return self.format_predictions(preds, ids)
 
     # todo: consider adding sota/ablation information
-    def label_table(self, paper, table, annotations, in_place):
+    @staticmethod
+    def label_table(paper, table, annotations, in_place):
         structure = pd.DataFrame().reindex_like(table.matrix).fillna("")
         ext_id = (paper.paper_id, table.name)
         if ext_id in annotations:

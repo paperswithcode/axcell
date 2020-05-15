@@ -1,4 +1,5 @@
 #  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+from functools import partial
 
 from .experiment import Experiment, label_map_ext
 from axcell.models.structure.nbsvm import *
@@ -10,6 +11,7 @@ from typing import Tuple
 from axcell.helpers.training import set_seed
 from fastai.text import *
 from fastai.text.learner import _model_meta
+import torch
 import numpy as np
 from pathlib import Path
 import json
@@ -23,6 +25,7 @@ class ULMFiTExperiment(Experiment):
         (1, 5e-3/2., 5e-3),  # (a, b) -> freeze_to(-2); fit_one_cycle(a, b)
         (8, 2e-3/100, 2e-3)  # (a, b) -> unfreeze(); fit_one_cyccle(a, b)
     )
+    moms: Tuple = None
     drop_mult: float = 0.75
     fp16: bool = False
     pretrained_lm: str = "pretrained-on-papers_enc.pkl"
@@ -59,15 +62,24 @@ class ULMFiTExperiment(Experiment):
 
     def _schedule(self, clas, i):
         s = self.schedule[i]
+        cyc_len = s[0]
         if len(s) == 2:
-            clas.fit_one_cycle(s[0], s[1])
+            max_lr = s[1]
         else:
-            clas.fit_one_cycle(s[0], slice(s[1], s[2]))
+            max_lr = slice(s[1], s[2])
+
+        if self.moms is None:
+            clas.fit_one_cycle(cyc_len, max_lr)
+        else:
+            clas.fit_one_cycle(cyc_len, max_lr, moms=self.moms)
 
     def _add_phase(self, state):
         del state['opt']
         del state['train_dl']
         self._phases.append(state)
+
+    def _get_train_metrics(self):
+        return None
 
     # todo: make it compatible with Experiment
     def train_model(self, data_clas):
@@ -75,22 +87,27 @@ class ULMFiTExperiment(Experiment):
         cfg = _model_meta[AWD_LSTM]['config_clas'].copy()
         cfg['n_layers'] = self.n_layers
 
-        clas = text_classifier_learner(data_clas, AWD_LSTM, config=cfg, drop_mult=self.drop_mult)
+        metrics = self._get_train_metrics()
+        clas = text_classifier_learner(data_clas, AWD_LSTM, config=cfg, drop_mult=self.drop_mult, metrics=metrics)
         clas.load_encoder(self.pretrained_lm)
         if self.fp16:
             clas = clas.to_fp16()
 
-        self._schedule(clas, 0)
         self._phases = []
-        self._add_phase(clas.recorder.get_state())
 
-        clas.freeze_to(-2)
-        self._schedule(clas, 1)
-        self._add_phase(clas.recorder.get_state())
+        if self.schedule[0][0]:
+            self._schedule(clas, 0)
+            self._add_phase(clas.recorder.get_state())
 
-        clas.unfreeze()
-        self._schedule(clas, 2)
-        self._add_phase(clas.recorder.get_state())
+        if self.schedule[1][0]:
+            clas.freeze_to(-2)
+            self._schedule(clas, 1)
+            self._add_phase(clas.recorder.get_state())
+
+        if self.schedule[2][0]:
+            clas.unfreeze()
+            self._schedule(clas, 2)
+            self._add_phase(clas.recorder.get_state())
 
         return clas
 
@@ -140,6 +157,48 @@ class ULMFiTExperiment(Experiment):
             self._preds.append(probs)
 
 
+def multipreds2preds(preds, threshold=0.5):
+    bs = preds.shape[0]
+    return torch.cat([preds, preds.new_full((bs,1), threshold)], dim=-1).argmax(dim=-1)
+
+
+def accuracy_multilabel(input, target, sigmoid=True, irrelevant_as_class=False, threshold=0.5):
+    if sigmoid:
+        if irrelevant_as_class:
+            input = torch.sigmoid(input).argmax(dim=-1)
+            target = target.argmax(dim=-1)
+            return (input == target).float().mean()
+        else:
+            input = torch.sigmoid(input)
+            input = multipreds2preds(input, threshold)
+            targs = multipreds2preds(target, threshold)
+            return (input == targs).float().mean()
+    else:
+        return accuracy(input, target)
+
+
+def accuracy_binary(input, target, sigmoid=True, irrelevant_as_class=False, threshold=0.5):
+    if sigmoid:
+        if irrelevant_as_class:
+            input = torch.sigmoid(input).argmax(dim=-1)
+            target = target.argmax(dim=-1)
+            input[input == 1] = 0
+            target[target == 1] = 0
+            return (input == target).float().mean()
+        else:
+            input = torch.sigmoid(input)
+            input = multipreds2preds(input, threshold)
+            target = multipreds2preds(target, threshold)
+            input[input == 1] = 0
+            target[target == 1] = 0
+            return (input == target).float().mean()
+    else:
+        input = input.argmax(dim=-1)
+        input[input == 1] = 0
+        target[target == 1] = 0
+        return (input == target).float().mean()
+
+
 @dataclass
 class ULMFiTTableTypeExperiment(ULMFiTExperiment):
     sigmoid: bool = True
@@ -154,8 +213,26 @@ class ULMFiTTableTypeExperiment(ULMFiTExperiment):
     def _save_model(self, path):
         pass
 
+    def _get_train_metrics(self):
+        if self.distinguish_ablation:
+            return [
+                partial(accuracy_multilabel, sigmoid=self.sigmoid, irrelevant_as_class=self.irrelevant_as_class),
+                partial(accuracy_binary, sigmoid=self.sigmoid, irrelevant_as_class=self.irrelevant_as_class)
+            ]
+        else:
+            return [accuracy]
+
     def _transform_df(self, df):
         df = df.copy(True)
+        if self.distinguish_ablation:
+            df["label"] = 2
+            df.loc[df.ablation, "label"] = 1
+            df.loc[df.sota, "label"] = 0
+        else:
+            df["label"] = 1
+            df.loc[df.sota, "label"] = 0
+            df.loc[df.ablation, "label"] = 0
+
         if self.sigmoid:
             if self.irrelevant_as_class:
                 df["irrelevant"] = ~(df["sota"] | df["ablation"])
@@ -163,18 +240,8 @@ class ULMFiTTableTypeExperiment(ULMFiTExperiment):
                 df["sota"] = df["sota"] | df["ablation"]
                 df = df.drop(columns=["ablation"])
         else:
-            if self.distinguish_ablation:
-                df["class"] = 2
-                df.loc[df.ablation, "class"] = 1
-                df.loc[df.sota, "class"] = 0
-            else:
-                df["class"] = 1
-                df.loc[df.sota, "class"] = 0
-                df.loc[df.ablation, "class"] = 0
+            df["class"] = df["label"]
 
-        df["label"] = 2
-        df.loc[df.ablation, "label"] = 1
-        df.loc[df.sota, "label"] = 0
         drop_columns = []
         if not self.caption:
             drop_columns.append("caption")
@@ -205,8 +272,6 @@ class ULMFiTTableTypeExperiment(ULMFiTExperiment):
                 preds = multipreds2preds(probs)
             else:
                 preds = np.argmax(probs, axis=1)
-            if not self.distinguish_ablation:
-                preds *= 2
 
             true_y = tdf["label"]
             self._set_results(prefix, preds, true_y)

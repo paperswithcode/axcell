@@ -375,3 +375,17 @@ class NBSVMExperiment(Experiment):
         nbsvm = NBSVM(experiment=self)
         nbsvm.fit(train_df["text"], train_df["label"])
         return nbsvm
+
+
+def experiments_grid(base_experiment, transform=None, **params):
+    if not params:
+        yield base_experiment
+    else:
+        param, values = next(iter(params.items()))
+        params.pop(param)
+        for value in values:
+            if transform and param in transform:
+                updates = transform[param](param, value)
+            else:
+                updates = {param: value}
+            yield from experiments_grid(base_experiment.new_experiment(**updates), transform, **params)
