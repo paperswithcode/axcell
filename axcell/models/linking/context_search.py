@@ -195,7 +195,8 @@ class ContextSearch:
                  context_noise=(0.99, 1.0, 1.0, 0.25, 0.01),
                  metric_noise=(0.99, 1.0, 1.0, 0.25, 0.01),
                  task_noise=(0.1, 1.0, 1.0, 0.1, 0.1),
-                 ds_pb=0.001, ms_pb=0.01, ts_pb=0.01, debug_gold_df=None):
+                 ds_pb=0.001, ms_pb=0.01, ts_pb=0.01,
+                 include_independent=True, debug_gold_df=None):
         merged_p = \
         get_probs({k: Counter([normalize_cell(normalize_dataset(x)) for x in v]) for k, v in evidence_finder.datasets.items()})[1]
         metrics_p = \
@@ -226,6 +227,7 @@ class ContextSearch:
         self.reverse_tasks_p = self._numba_update_nested_dict(reverse_probs(tasks_p))
         self.debug_gold_df = debug_gold_df
         self.max_repetitions = 3
+        self.include_independent = include_independent
 
     def _numba_update_nested_dict(self, nested):
         d = typed.Dict()
@@ -352,15 +354,16 @@ class ContextSearch:
                 entry.update({"evidence": "", "confidence": prob})
                 entries.append(entry)
 
-            best_independent = dict(
-                task=top_results_t[0][0],
-                dataset=top_results_d[0][0],
-                metric=top_results_m[0][0])
-            best_independent.update({
-                "evidence": "",
-                "confidence": 0.79
-            })
-            entries.append(best_independent)
+            if self.include_independent:
+                best_independent = dict(
+                    task=top_results_t[0][0],
+                    dataset=top_results_d[0][0],
+                    metric=top_results_m[0][0])
+                best_independent.update({
+                    "evidence": "",
+                    "confidence": 0.79
+                })
+                entries.append(best_independent)
 
             # entries = []
             # for i in range(5):
