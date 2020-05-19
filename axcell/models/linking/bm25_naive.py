@@ -242,8 +242,8 @@ proposal_columns = ['dataset', 'metric', 'task', 'format', 'raw_value', 'model',
                     'confidence', 'parsed', 'struct_model_type', 'struct_dataset']
 
 
-def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonomy_linking,
-                                 paper_context, abstract_context, table_context, topk=1):
+# generator of all result-like cells
+def generate_cells_proposals(table_ext_id,  matrix, structure, desc):
     # %%
     # Proposal generation
     def consume_cells(matrix):
@@ -275,6 +275,60 @@ def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonom
         raw_value=val)
         for r, c, val in consume_cells(matrix)
         if structure[r, c] == '' and number_re.match(matrix[r, c].strip())]
+    return proposals
+
+
+def link_cells_proposals(proposals, desc, taxonomy_linking,
+                         paper_context, abstract_context, table_context, topk=1):
+    for prop in proposals:
+        # heuristyic to handle accuracy vs error
+        format = "{x}"
+
+        percentage = '%' in prop.raw_value
+        if percentage:
+            format += '%'
+
+        df = taxonomy_linking(prop.dataset, paper_context, abstract_context, table_context,
+                              desc, topk=topk, debug_info=prop)
+        for _, row in df.iterrows():
+            raw_value = prop.raw_value
+            task = row['task']
+            dataset = row['dataset']
+            metric = row['metric']
+
+            complementary = False
+            if metric != row['true_metric']:
+                metric = row['true_metric']
+                complementary = True
+
+            # todo: pass taxonomy directly to proposals generation
+            ranges = taxonomy_linking.taxonomy.metrics_range
+            key = (task, dataset, metric)
+            rng = ranges.get(key, '')
+            if not rng: rng = ranges.get(metric, '')
+
+            parsed = float(convert_metric(raw_value, rng, complementary))
+
+            linked = {
+                'dataset': dataset,
+                'metric': metric,
+                'task': task,
+                'format': format,
+                'raw_value': raw_value,
+                'model': prop.model_name,
+                'model_type': prop.model_type,
+                'cell_ext_id': prop.cell.cell_ext_id,
+                'confidence': row['confidence'],
+                'struct_model_type': prop.model_type,
+                'struct_dataset': prop.dataset,
+                'parsed': parsed
+            }
+            yield linked
+
+
+
+def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonomy_linking,
+                                 paper_context, abstract_context, table_context, topk=1):
 
     # def empty_proposal(cell_ext_id, reason):
     #     np = "not-present"
@@ -283,55 +337,14 @@ def generate_proposals_for_table(table_ext_id,  matrix, structure, desc, taxonom
     #         model_type=np, cell_ext_id=cell_ext_id, confidence=-1, debug_reason=reason
     #     )
 
-    def linked_proposals(proposals):
-        for prop in proposals:
-            # heuristyic to handle accuracy vs error
-            format = "{x}"
 
-            percentage = '%' in prop.raw_value
-            if percentage:
-                format += '%'
 
-            df = taxonomy_linking(prop.dataset, paper_context, abstract_context, table_context,
-                                  desc, topk=topk, debug_info=prop)
-            for _, row in df.iterrows():
-                raw_value = prop.raw_value
-                task = row['task']
-                dataset = row['dataset']
-                metric = row['metric']
-
-                complementary = False
-                if metric != row['true_metric']:
-                    metric = row['true_metric']
-                    complementary = True
-
-                # todo: pass taxonomy directly to proposals generation
-                ranges = taxonomy_linking.taxonomy.metrics_range
-                key = (task, dataset, metric)
-                rng = ranges.get(key, '')
-                if not rng: rng = ranges.get(metric, '')
-
-                parsed = float(convert_metric(raw_value, rng, complementary))
-
-                linked = {
-                    'dataset': dataset,
-                    'metric': metric,
-                    'task': task,
-                    'format': format,
-                    'raw_value': raw_value,
-                    'model': prop.model_name,
-                    'model_type': prop.model_type,
-                    'cell_ext_id': prop.cell.cell_ext_id,
-                    'confidence': row['confidence'],
-                    'struct_model_type': prop.model_type,
-                    'struct_dataset': prop.dataset,
-                    'parsed': parsed
-                }
-                yield linked
+    proposals = generate_cells_proposals(table_ext_id, matrix, structure, desc)
+    proposals = link_cells_proposals(proposals, desc, taxonomy_linking, paper_context, abstract_context,
+                                     table_context, topk=topk)
 
     # specify columns in case there's no proposal
-
-    proposals = pd.DataFrame.from_records(list(linked_proposals(proposals)), columns=proposal_columns)
+    proposals = pd.DataFrame.from_records(list(proposals), columns=proposal_columns)
     return proposals
 
 
