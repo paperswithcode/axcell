@@ -33,7 +33,7 @@ class PaperExtractor:
         try:
             self.unpack(source, unpack_path)
         except UnpackError as e:
-            if e.message.startswith('The paper has been withdrawn'):
+            if e.args[0].startswith('The paper has been withdrawn'):
                 return 'withdrawn'
             return 'no-tex'
         html_path = self.root / 'htmls' / subpath / 'index.html'
