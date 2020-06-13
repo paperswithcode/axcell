@@ -7,7 +7,14 @@ papers_dir="papers"
 src_dir="src"
 mkdir -p "${index_dir}" "${papers_dir}" "${src_dir}"
 
-jq -r '.[] | select(.arxiv_id) | "/"+.arxiv_id+"."' pwc/papers-with-abstracts.json | sort -u > wildcards.txt
+python <<EOF
+import pandas as pd, re
+arxiv_no_version = re.compile(r'^(\d+\.\d+)(v\d+)?$')
+ids = pd.read_csv('arxiv-papers.csv.xz')['arxiv_id']
+ids = ids.str.replace(arxiv_no_version, r'/\1.')
+ids.to_csv('wildcards.txt', header=False, index=False)
+EOF
+
 aws s3 cp --request-payer requester s3://arxiv/src/arXiv_src_manifest.xml .
 xmllint --xpath '//filename/text()' arXiv_src_manifest.xml > tars.txt
 
