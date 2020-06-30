@@ -21,10 +21,14 @@ MAGIC_EXIT_ERROR = 117
 
 
 class LatexConverter:
-    def __init__(self):
+    def __init__(self, scripts_path=None):
         # pull arxivvanity/engrafo image
         self.client = docker.from_env()
-        self._scripts_path = Path(__file__).resolve().parent.parent / 'scripts'
+        if scripts_path is None:
+            self._scripts_path =\
+                Path(__file__).resolve().parent.parent / 'scripts'
+        else:
+            self._scripts_path = Path(scripts_path)
 
     def latex2html(self, source_dir, output_dir, use_named_volumes=False):
         base = self._scripts_path
