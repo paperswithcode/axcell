@@ -305,12 +305,15 @@ def until_first_nonalphanumeric(string):
     return nonalphanumeric_re.split(string)[0]
 
 class ReferenceStore:
-    def __init__(self, grobid_client, surnames_path='/mnt/efs/pwc/data/ref-names.json'):
+    def __init__(self, grobid_client,
+                 surnames_path='/mnt/efs/pwc/data/ref-names.json',
+                 use_cache=True):
         self.grobid_client = grobid_client
         self.refdb = {}
         self.tosync = []
         self.surnames_db = defaultdict(lambda: 0)
         self._load_surnames(surnames_path)
+        self.use_cache = use_cache
 
     def _load_surnames(self, path):
         with Path(path).open() as f:
@@ -320,22 +323,33 @@ class ReferenceStore:
         return word in self.preloaded_surnames_db  #or self.surnames_db[word] > 5
 
     def get_reference(self, key):
-        if key not in self.refdb:
-            self.refdb[key] = Reference2.mget([key])[0]
-        return self.refdb[key]
+        if self.use_cache:
+            if key not in self.refdb:
+                self.refdb[key] = Reference2.mget([key])[0]
+            return self.refdb[key]
+        return Reference2.mget([key])[0]
 
     def add_or_merge(self, ref):
         curr_uid = ref.unique_id()
-        if curr_uid not in self.refdb:
-            self.refdb[curr_uid] = Reference2.mget([curr_uid])[0] or Reference2.from_ref(ref)
-        self.refdb[curr_uid].add_ref(ref)  # to fill all other fields but title
-        self.refdb[ref.unique_id()] = self.refdb[curr_uid]
-        self.tosync.append(self.refdb[curr_uid])
+        if not self.use_cache or curr_uid not in self.refdb:
+            curr_ref = Reference2.mget([curr_uid])[0] or Reference2.from_ref(ref)
+        else:
+            curr_ref = self.refdb[curr_uid]
+        curr_ref.add_ref(ref)  # to fill all other fields but title
+        if self.use_cache:
+            self.refdb[curr_uid] = curr_ref
+            self.refdb[ref.unique_id()] = curr_ref
+            self.tosync.append(curr_ref)
+        else:
+            try:
+                curr_ref.save()
+            except ConflictError:
+                pass
         for author in ref.authors:
             if author is not None:
                 self.surnames_db[author.surname] += 1
 
-        return self.refdb[curr_uid].stable_id
+        return curr_ref.stable_id
 
     def add_reference_string(self, ref_str):
         ref = PReference.parse_ref_str(ref_str, self.grobid_client, is_surname=self.is_surname)
