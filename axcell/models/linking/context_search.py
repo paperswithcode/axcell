@@ -1,7 +1,7 @@
 #  Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 
 # metrics[taxonomy name] is a list of normalized evidences for taxonomy name
-from collections import Counter
+from collections import Counter, OrderedDict
 
 from axcell.models.linking.acronym_extractor import AcronymExtractor
 from axcell.models.linking.probs import get_probs, reverse_probs
@@ -18,7 +18,6 @@ from pathlib import Path
 from axcell.pipeline_logger import pipeline_logger
 
 from axcell.models.linking import manual_dicts
-from collections import Counter
 
 
 def dummy_item(reason):
@@ -190,6 +189,28 @@ def _to_typed_list(iterable):
     return l
 
 
+class LRUCache:
+    def __init__(self, capacity):
+        self.cache = OrderedDict()
+        self.capacity = capacity
+
+    def __getitem__(self, key):
+        self.cache.move_to_end(key)
+        return self.cache[key]
+
+    def __setitem__(self, key, value):
+        self.cache[key] = value
+        self.cache.move_to_end(key)
+        if len(self.cache) > self.capacity:
+            self.cache.popitem(last=False)
+
+    def __contains__(self, item):
+        return item in self.cache
+
+    def __repr__(self):
+        return f"LRUCache(capacity={self.capacity}, {repr(dict(self.cache))})"
+
+
 class ContextSearch:
     def __init__(self, taxonomy, evidence_finder,
                  context_noise=(0.99, 1.0, 1.0, 0.25, 0.01),
@@ -204,9 +225,8 @@ class ContextSearch:
         tasks_p = \
         get_probs({k: Counter([normalize_cell(normalize_dataset(x)) for x in v]) for k, v in evidence_finder.tasks.items()})[1]
 
-        # todo: use LRU cache to avoid OOM
-        self.queries = {}
-        self.logprobs_cache = {}
+        self.queries = LRUCache(10_000)
+        self.logprobs_cache = LRUCache(10_000)
         self.taxonomy = taxonomy
         self.evidence_finder = evidence_finder
 
